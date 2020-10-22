@@ -44,7 +44,8 @@ uint32_t colourToCode(Colour colour){
 	return (colour.red << 16) + (colour.green << 8) + colour.blue;
 }
 
-void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
+std::vector<CanvasPoint> getLinePoints(CanvasPoint from, CanvasPoint to) {
+	std::vector<CanvasPoint> points;
 	float distX = to.x - from.x;
 	float distY = to.y - from.y;
 	float numberOfSteps = std::max(abs(distX), abs(distY));
@@ -53,6 +54,16 @@ void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour co
 	for(float i = 0.0; i < numberOfSteps; i++) {
 		float x = from.x + (xStepSize * i);
 		float y = from.y + (yStepSize * i);
+		points.push_back(CanvasPoint(x,y));
+	}
+	return points;
+}
+
+void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
+	std::vector<CanvasPoint> points = getLinePoints(from, to);
+	for(size_t i = 0; i < points.size(); i++) {
+		float x = points[i].x;
+		float y = points[i].y;
 		window.setPixelColour(round(x), round(y), colourToCode(colour));
 	}
 }
@@ -63,7 +74,7 @@ void drawStrokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour 
 	drawLine(window, triangle.vertices[2], triangle.vertices[0], colour);
 }
 
-void drawRandomTriangle(DrawingWindow &window) {
+void drawRandomStrokedTriangle(DrawingWindow &window) {
 	std::vector<CanvasPoint> verticies;
 	for(int i = 0; i < 3; i++){
 		int x = rand() % window.width;
@@ -101,9 +112,28 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	
 	CanvasPoint intersectionPoint = getIntersectionPoint(triangle.vertices);
 	std::cout << "DIAGNOSTICS" << std::endl;
-	std::cout << intersectionPoint << std::endl;
-	drawLine(window, intersectionPoint, triangle.vertices[1], Colour(255,255,255));
-	drawStrokedTriangle(window, triangle, Colour(255,255,255));
+
+	CanvasPoint top = triangle.vertices[0];
+	CanvasPoint middle = triangle.vertices[1];
+	CanvasPoint bottom = triangle.vertices[2];
+	
+	float topDiff = ceil(abs(middle.y - top.y) * 1.5);
+	float leftPointX = std::min(middle.x, intersectionPoint.x);
+	float rightPointX = std::max(middle.x, intersectionPoint.x);
+	std::vector<float> leftEdgeXs = interpolateSingleFloats(top.x, leftPointX, topDiff);
+	std::vector<float> rightEdgeXs = interpolateSingleFloats(top.x, rightPointX, topDiff);
+	std::vector<float> Ys = interpolateSingleFloats(top.y, middle.y, topDiff);
+	for(size_t i=0; i<Ys.size(); i++) std::cout << Ys[i] << " ";
+
+	
+	for (size_t i = 0; i <= topDiff; i++) {
+		CanvasPoint leftPoint = CanvasPoint(leftEdgeXs[i], Ys[i]);
+		CanvasPoint rightPoint = CanvasPoint(rightEdgeXs[i], Ys[i]);
+		drawLine(window, leftPoint, rightPoint, colour);
+	}
+
+	drawLine(window, intersectionPoint, triangle.vertices[1],colour);
+	drawStrokedTriangle(window, triangle, Colour(255,0,255));
 }
 
 // TEMPLATE
@@ -143,7 +173,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 		else if (event.key.keysym.sym == SDLK_UP) std::cout << "UP" << std::endl;
 		else if (event.key.keysym.sym == SDLK_DOWN) std::cout << "DOWN" << std::endl;
 		else if (event.key.keysym.sym == SDLK_u){
-			drawRandomTriangle(window);
+			drawRandomStrokedTriangle(window);
 		}
 		else if (event.key.keysym.sym == SDLK_f){
 
