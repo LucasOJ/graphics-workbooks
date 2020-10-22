@@ -59,6 +59,21 @@ std::vector<CanvasPoint> getLinePoints(CanvasPoint from, CanvasPoint to) {
 	return points;
 }
 
+std::vector<CanvasPoint> yAxisInterpolate(CanvasPoint from, CanvasPoint to) {
+	std::vector<CanvasPoint> points;
+	float distX = to.x - from.x;
+	float distY = to.y - from.y;
+	float numberOfSteps = abs(distY);
+	float xStepSize = distX / numberOfSteps;
+	float yStepSize = distY / numberOfSteps;
+	for(float i = 0.0; i < numberOfSteps; i++) {
+		float x = from.x + (xStepSize * i);
+		float y = from.y + (yStepSize * i);
+		points.push_back(CanvasPoint(x,y));
+	}
+	return points;
+}
+
 void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
 	std::vector<CanvasPoint> points = getLinePoints(from, to);
 	for(size_t i = 0; i < points.size(); i++) {
@@ -116,24 +131,31 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 	CanvasPoint top = triangle.vertices[0];
 	CanvasPoint middle = triangle.vertices[1];
 	CanvasPoint bottom = triangle.vertices[2];
-	
-	float topDiff = ceil(abs(middle.y - top.y) * 1.5);
-	float leftPointX = std::min(middle.x, intersectionPoint.x);
-	float rightPointX = std::max(middle.x, intersectionPoint.x);
-	std::vector<float> leftEdgeXs = interpolateSingleFloats(top.x, leftPointX, topDiff);
-	std::vector<float> rightEdgeXs = interpolateSingleFloats(top.x, rightPointX, topDiff);
-	std::vector<float> Ys = interpolateSingleFloats(top.y, middle.y, topDiff);
-	for(size_t i=0; i<Ys.size(); i++) std::cout << Ys[i] << " ";
 
-	
-	for (size_t i = 0; i <= topDiff; i++) {
-		CanvasPoint leftPoint = CanvasPoint(leftEdgeXs[i], Ys[i]);
-		CanvasPoint rightPoint = CanvasPoint(rightEdgeXs[i], Ys[i]);
-		drawLine(window, leftPoint, rightPoint, colour);
+	//REPLACE WITH SWAP
+	CanvasPoint leftPoint = middle;
+	CanvasPoint rightPoint = intersectionPoint;
+	if (rightPoint.x < leftPoint.x){
+		std::swap(leftPoint, rightPoint);
 	}
 
-	drawLine(window, intersectionPoint, triangle.vertices[1],colour);
+	float rightPointX = std::max(middle.x, intersectionPoint.x);
+	std::vector<CanvasPoint> leftEdge = yAxisInterpolate(top, leftPoint);
+	std::vector<CanvasPoint> rightEdge = yAxisInterpolate(top, rightPoint);
+	
+	//drawLine(window, intersectionPoint, triangle.vertices[1],colour);
+	//drawStrokedTriangle(window, triangle, Colour(255,0,255));
+	
+
+	for (size_t i = 0; i < leftEdge.size(); i++) {
+		//drawLine(window, leftEdge[i], rightEdge[i], colour);
+		window.setPixelColour(round(leftEdge[i].x),round(leftEdge[i].y), colourToCode(Colour(255,255,255)));
+	}
+
 	drawStrokedTriangle(window, triangle, Colour(255,0,255));
+	
+
+
 }
 
 // TEMPLATE
