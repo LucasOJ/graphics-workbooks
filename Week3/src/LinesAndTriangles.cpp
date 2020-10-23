@@ -87,7 +87,7 @@ void drawStrokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour 
 	drawLine(window, triangle.vertices[2], triangle.vertices[0], colour);
 }
 
-void drawRandomStrokedTriangle(DrawingWindow &window) {
+CanvasTriangle getRandomTriangle(DrawingWindow &window) {
 	std::vector<CanvasPoint> verticies;
 	for(int i = 0; i < 3; i++){
 		int x = rand() % window.width;
@@ -95,7 +95,16 @@ void drawRandomStrokedTriangle(DrawingWindow &window) {
 		verticies.push_back(CanvasPoint(x, y));
 	}
 	CanvasTriangle triangle = CanvasTriangle(verticies[0], verticies[1], verticies[2]);
-	Colour colour = Colour(rand() % 256, rand() % 256, rand() % 256);
+	return triangle;
+}
+
+Colour getRandomColour() {
+	return Colour(rand() % 256, rand() % 256, rand() % 256);
+}
+
+void drawRandomStrokedTriangle(DrawingWindow &window) {
+	CanvasTriangle triangle = getRandomTriangle(window);
+	Colour colour = getRandomColour();
 	drawStrokedTriangle(window, triangle, colour);
 }
 
@@ -119,36 +128,19 @@ CanvasPoint getIntersectionPoint(std::array<CanvasPoint, 3UL> &verticies){
 	return CanvasPoint(x, verticies[1].y);
 }
 
-void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour){
-	sortVerticies(triangle.vertices);
-	
-	CanvasPoint intersectionPoint = getIntersectionPoint(triangle.vertices);
-	std::cout << "DIAGNOSTICS" << std::endl;
+// PRE-CONDITION: 
+// top.y <= leftPoint.y && top.y <= rightPoint.y && leftPoint.x <= rightPoint.x
+void drawTopTriangle(DrawingWindow &window, CanvasPoint top, CanvasPoint leftPoint, CanvasPoint rightPoint, Colour colour) {
 
-	CanvasPoint top = triangle.vertices[0];
-	CanvasPoint middle = triangle.vertices[1];
-	CanvasPoint bottom = triangle.vertices[2];
-
-	//REPLACE WITH SWAP
-	CanvasPoint leftPoint = middle;
-	CanvasPoint rightPoint = intersectionPoint;
-	if (rightPoint.x < leftPoint.x){
-		std::swap(leftPoint, rightPoint);
-	}
-
-	float verticalSteps = abs(middle.y - top.y);
-
+	float verticalSteps = leftPoint.y - top.y;
 
 	float leftStepDelta = (leftPoint.x - top.x) / verticalSteps;
 	float rightStepDelta = (rightPoint.x - top.x) / verticalSteps;
-	std::cout << rightStepDelta << std::endl;
 
 	float currentLeftX = top.x;
 	float currentRightX = top.x;
 
-
-	drawStrokedTriangle(window, triangle, Colour(255,0,255));
-	for (float y = top.y; y <= middle.y; y++) {
+	for (float y = top.y; y <= leftPoint.y; y++) {
 		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
 		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
 		drawLine(window, leftPoint, rightPoint, colour);
@@ -156,6 +148,53 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 		currentLeftX += leftStepDelta;
 		currentRightX += rightStepDelta;
 	}
+}
+
+void drawBottomTriangle(DrawingWindow &window, CanvasPoint bottom, CanvasPoint leftPoint, CanvasPoint rightPoint, Colour colour) {
+
+	float verticalSteps = bottom.y - leftPoint.y;
+
+	float leftStepDelta = (bottom.x - leftPoint.x) / verticalSteps;
+	float rightStepDelta = (bottom.x - rightPoint.x) / verticalSteps;
+
+	float currentLeftX = leftPoint.x;
+	float currentRightX = rightPoint.x;
+
+	for (float y = leftPoint.y; y <= bottom.y; y++) {
+		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
+		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
+		drawLine(window, leftPoint, rightPoint, colour);
+
+		currentLeftX += leftStepDelta;
+		currentRightX += rightStepDelta;
+	}
+}
+
+
+void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour){
+	sortVerticies(triangle.vertices);
+	
+	CanvasPoint intersectionPoint = getIntersectionPoint(triangle.vertices);
+
+	CanvasPoint top = triangle.vertices[0];
+	CanvasPoint middle = triangle.vertices[1];
+	CanvasPoint bottom = triangle.vertices[2];
+
+	CanvasPoint leftPoint = middle;
+	CanvasPoint rightPoint = intersectionPoint;
+	if (rightPoint.x < leftPoint.x){
+		std::swap(leftPoint, rightPoint);
+	}
+
+	drawTopTriangle(window, top, leftPoint, rightPoint, colour);
+	drawBottomTriangle(window, bottom, leftPoint, rightPoint, colour);
+}
+
+void drawRandomFilledTriangle(DrawingWindow &window) {
+	CanvasTriangle triangle = getRandomTriangle(window);
+	Colour colour = getRandomColour();
+	drawFilledTriangle(window, triangle, colour);
+	drawStrokedTriangle(window,triangle, Colour(255,255,255));
 }
 
 // TEMPLATE
@@ -198,14 +237,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 			drawRandomStrokedTriangle(window);
 		}
 		else if (event.key.keysym.sym == SDLK_f){
-
-			Colour yellow = Colour(255,255,0);
-			Colour purple = Colour(255,0,255);
-			CanvasPoint v1 = CanvasPoint(200, 10);
-			CanvasPoint v2 = CanvasPoint(50, 500);
-			CanvasPoint v3 = CanvasPoint(547, 400);
-			CanvasTriangle triangle = CanvasTriangle(v1, v2, v3);
-			drawFilledTriangle(window, triangle, yellow);
+			drawRandomFilledTriangle(window);
 		}
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) window.savePPM("output.ppm");
 }
