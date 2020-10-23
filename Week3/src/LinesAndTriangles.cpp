@@ -46,27 +46,25 @@ uint32_t colourToCode(Colour colour){
 
 std::vector<CanvasPoint> getLinePoints(CanvasPoint from, CanvasPoint to) {
 	std::vector<CanvasPoint> points;
-	float distX = to.x - from.x;
-	float distY = to.y - from.y;
-	float numberOfSteps = std::max(abs(distX), abs(distY));
-	float xStepSize = distX / numberOfSteps;
-	float yStepSize = distY / numberOfSteps;
-	for(float i = 0.0; i < numberOfSteps; i++) {
-		float x = from.x + (xStepSize * i);
-		float y = from.y + (yStepSize * i);
-		points.push_back(CanvasPoint(x,y));
-	}
-	return points;
-}
 
-std::vector<CanvasPoint> yAxisInterpolate(CanvasPoint from, CanvasPoint to) {
-	std::vector<CanvasPoint> points;
+	// MAY NEED TO REMOVE
+	// Leads to zero delta if left
+	if (from.x == to.x && from.y == to.y){
+		points.push_back(from);
+		return points;
+	}
+
 	float distX = to.x - from.x;
 	float distY = to.y - from.y;
-	float numberOfSteps = abs(distY);
+
+	// THINK ABOUT NUMBER OF STEPS VS NUMBER OF PIXELS
+	// <= vs <
+
+	//Ceil to prevent skipping fractional remainders
+	float numberOfSteps = ceil(std::max(abs(distX), abs(distY)));
 	float xStepSize = distX / numberOfSteps;
 	float yStepSize = distY / numberOfSteps;
-	for(float i = 0.0; i < numberOfSteps; i++) {
+	for(float i = 0.0; i <= numberOfSteps; i++) {
 		float x = from.x + (xStepSize * i);
 		float y = from.y + (yStepSize * i);
 		points.push_back(CanvasPoint(x,y));
@@ -121,7 +119,6 @@ CanvasPoint getIntersectionPoint(std::array<CanvasPoint, 3UL> &verticies){
 	return CanvasPoint(x, verticies[1].y);
 }
 
-
 void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour){
 	sortVerticies(triangle.vertices);
 	
@@ -139,23 +136,26 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 		std::swap(leftPoint, rightPoint);
 	}
 
-	float rightPointX = std::max(middle.x, intersectionPoint.x);
-	std::vector<CanvasPoint> leftEdge = yAxisInterpolate(top, leftPoint);
-	std::vector<CanvasPoint> rightEdge = yAxisInterpolate(top, rightPoint);
-	
-	//drawLine(window, intersectionPoint, triangle.vertices[1],colour);
-	//drawStrokedTriangle(window, triangle, Colour(255,0,255));
-	
+	float verticalSteps = abs(middle.y - top.y);
 
-	for (size_t i = 0; i < leftEdge.size(); i++) {
-		//drawLine(window, leftEdge[i], rightEdge[i], colour);
-		window.setPixelColour(round(leftEdge[i].x),round(leftEdge[i].y), colourToCode(Colour(255,255,255)));
-	}
+
+	float leftStepDelta = (leftPoint.x - top.x) / verticalSteps;
+	float rightStepDelta = (rightPoint.x - top.x) / verticalSteps;
+	std::cout << rightStepDelta << std::endl;
+
+	float currentLeftX = top.x;
+	float currentRightX = top.x;
+
 
 	drawStrokedTriangle(window, triangle, Colour(255,0,255));
-	
+	for (float y = top.y; y <= middle.y; y++) {
+		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
+		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
+		drawLine(window, leftPoint, rightPoint, colour);
 
-
+		currentLeftX += leftStepDelta;
+		currentRightX += rightStepDelta;
+	}
 }
 
 // TEMPLATE
