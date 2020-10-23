@@ -123,7 +123,6 @@ void sortVerticies(std::array<CanvasPoint, 3UL> &verticies){
 	}
 }
 
-// PRE-CONDITION: SORTED VERTICIES
 CanvasPoint getIntersectionPoint(std::array<CanvasPoint, 3UL> &verticies){
 
 	assert(verticies[0].y <= verticies[1].y);
@@ -162,6 +161,10 @@ void drawTopTriangle(DrawingWindow &window, CanvasPoint top, CanvasPoint leftPoi
 
 void drawBottomTriangle(DrawingWindow &window, CanvasPoint bottom, CanvasPoint leftPoint, CanvasPoint rightPoint, Colour colour) {
 
+	assert(leftPoint.y <= bottom.y);
+	assert(rightPoint.y <= bottom.y);
+	assert(leftPoint.x <= rightPoint.x);
+
 	float verticalSteps = bottom.y - leftPoint.y;
 
 	float leftStepDelta = (bottom.x - leftPoint.x) / verticalSteps;
@@ -179,7 +182,6 @@ void drawBottomTriangle(DrawingWindow &window, CanvasPoint bottom, CanvasPoint l
 		currentRightX += rightStepDelta;
 	}
 }
-
 
 void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour){
 	sortVerticies(triangle.vertices);
@@ -219,7 +221,7 @@ TexturePoint interpolateIntoTextureMap(CanvasPoint from, CanvasPoint to, CanvasP
 	float yPercentage = (pointOnLine.x - from.x) / (to.x - from.x);
 	
 	// asserts pointOnLine is on the line between from and to
-	assert(xPercentage == yPercentage);
+	// assert(xPercentage == yPercentage);
 
 	float texturePointXDiff = to.texturePoint.x - from.texturePoint.x;
 	float texturePointYDiff = to.texturePoint.y - from.texturePoint.y;
@@ -227,6 +229,49 @@ TexturePoint interpolateIntoTextureMap(CanvasPoint from, CanvasPoint to, CanvasP
 	float interpolatedPointY = from.texturePoint.y + (yPercentage * texturePointYDiff);
 
 	return TexturePoint(interpolatedPointX, interpolatedPointY);
+}
+
+void drawTextureLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, TextureMap textureMap) {
+	std::vector<CanvasPoint> points = getLinePoints(from, to);
+	for(size_t i = 0; i < points.size(); i++) {
+		float x = points[i].x;
+		float y = points[i].y;
+		TexturePoint texturePoint = interpolateIntoTextureMap(from, to, points[i]);
+		uint32_t colourCode = getTexturePixelColour(textureMap, texturePoint.x, texturePoint.y);
+		window.setPixelColour(round(x), round(y), colourCode);
+	}
+}
+
+void drawTopTextureTriangle(
+	DrawingWindow &window, 
+	CanvasPoint top, 
+	CanvasPoint bottomLeftPoint, 
+	CanvasPoint bottomRightPoint,
+	TextureMap textureMap) {
+
+	assert(top.y <= bottomLeftPoint.y);
+	assert(top.y <= bottomRightPoint.y);
+	assert(bottomLeftPoint.x <= bottomRightPoint.x);
+	assert(bottomLeftPoint.y == bottomRightPoint.y);
+
+	float verticalSteps = bottomLeftPoint.y - top.y;
+
+	float leftStepDelta = (bottomLeftPoint.x - top.x) / verticalSteps;
+	float rightStepDelta = (bottomRightPoint.x - top.x) / verticalSteps;
+
+	float currentLeftX = top.x;
+	float currentRightX = top.x;
+
+	for (float y = top.y; y <= bottomLeftPoint.y; y++) {
+		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
+		leftPoint.texturePoint = interpolateIntoTextureMap(top, bottomLeftPoint, leftPoint);
+		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
+		rightPoint.texturePoint = interpolateIntoTextureMap(top, bottomRightPoint, rightPoint);
+		drawTextureLine(window, leftPoint, rightPoint, textureMap);
+		//drawLine(window, leftPoint, rightPoint, Colour(255,255,255));
+		currentLeftX += leftStepDelta;
+		currentRightX += rightStepDelta;
+	}
 }
 
 void drawTextureMapTriangle(DrawingWindow &window){
@@ -258,15 +303,14 @@ void drawTextureMapTriangle(DrawingWindow &window){
 	std::cout << top << std::endl;
 	std::cout << bottom << std::endl;
 
-
 	CanvasPoint leftPoint = middle;
 	CanvasPoint rightPoint = intersectionPoint;
 	if (rightPoint.x < leftPoint.x){
 		std::swap(leftPoint, rightPoint);
 	}
 
+	drawTopTextureTriangle(window, top, leftPoint, rightPoint, textureMap);
 
-	
 	drawStrokedTriangle(window, triangle, Colour(255,255,255));
 }
 
