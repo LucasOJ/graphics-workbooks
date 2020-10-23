@@ -11,8 +11,11 @@
 #include <CanvasPoint.h>
 #include <Colour.h>
 
-#define WIDTH 600
-#define HEIGHT 600
+#include <TexturePoint.h>
+#include <TextureMap.h>
+
+#define WIDTH 320
+#define HEIGHT 240
 
 // WEEK 1
 
@@ -128,6 +131,8 @@ CanvasPoint getIntersectionPoint(std::array<CanvasPoint, 3UL> &verticies){
 	return CanvasPoint(x, verticies[1].y);
 }
 
+// FILLED TRIANGLES
+
 // PRE-CONDITION: 
 // top.y <= leftPoint.y && top.y <= rightPoint.y && leftPoint.x <= rightPoint.x
 void drawTopTriangle(DrawingWindow &window, CanvasPoint top, CanvasPoint leftPoint, CanvasPoint rightPoint, Colour colour) {
@@ -197,18 +202,38 @@ void drawRandomFilledTriangle(DrawingWindow &window) {
 	drawStrokedTriangle(window,triangle, Colour(255,255,255));
 }
 
+// TEXTURE MAP
+
+uint32_t getTexturePixelColour(TextureMap textureMap, float x, float y){
+	uint32_t index = round(y) * textureMap.width + round(x);
+	return textureMap.pixels[index];
+} 
+
+void drawTextureMapTriangle(DrawingWindow &window){
+
+	TextureMap textureMap = TextureMap("texture.ppm");
+
+	//std::cout << textureMap.pixels[480] << std::endl;
+	//std::cout << getTexturePixelColour(textureMap, 0, 1) << std::endl;
+	//std::cout << textureMap.width << std::endl;
+
+	CanvasPoint v1 = CanvasPoint(160, 10);
+	v1.texturePoint = TexturePoint(195,5);
+	CanvasPoint v2 = CanvasPoint(300, 230);
+	v2.texturePoint = TexturePoint(395, 380);
+	CanvasPoint v3 = CanvasPoint(10, 150);
+	v3.texturePoint = TexturePoint(65, 330);
+
+	CanvasTriangle triangle = CanvasTriangle(v1, v2, v3);
+	
+
+	drawStrokedTriangle(window, triangle, Colour(255,255,255));
+}
+
 // TEMPLATE
 
 void draw(DrawingWindow &window) {
 	window.clearPixels();
-
-	//glm::vec3 topLeft(255, 0, 0);        // red 
-	//glm::vec3 topRight(0, 0, 255);       // blue 
-	//glm::vec3 bottomRight(0, 255, 0);    // green 
-	//glm::vec3 bottomLeft(255, 255, 0);   // yellow
-
-	//std::vector<glm::vec3> leftColumn = interpolateThreeElementValues(topLeft, bottomLeft, window.height);
-	//std::vector<glm::vec3> rightColumn = interpolateThreeElementValues(topRight, bottomRight, window.height);
 
 	for (size_t y = 0; y < window.height; y++) {
 	
@@ -246,6 +271,7 @@ int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 	
+	drawTextureMapTriangle(window);
 
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
