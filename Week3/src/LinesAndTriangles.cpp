@@ -40,8 +40,9 @@ std::vector<glm::vec3> interpolateThreeElementValues(glm::vec3 from, glm::vec3 t
 	return result;
 }
 
-
 // WEEK 3
+
+// UTILS
 
 uint32_t colourToCode(Colour colour){
 	return (colour.red << 16) + (colour.green << 8) + colour.blue;
@@ -75,21 +76,6 @@ std::vector<CanvasPoint> getLinePoints(CanvasPoint from, CanvasPoint to) {
 	return points;
 }
 
-void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
-	std::vector<CanvasPoint> points = getLinePoints(from, to);
-	for(size_t i = 0; i < points.size(); i++) {
-		float x = points[i].x;
-		float y = points[i].y;
-		window.setPixelColour(round(x), round(y), colourToCode(colour));
-	}
-}
-
-void drawStrokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour){
-	drawLine(window, triangle.vertices[0], triangle.vertices[1], colour);
-	drawLine(window, triangle.vertices[1], triangle.vertices[2], colour);
-	drawLine(window, triangle.vertices[2], triangle.vertices[0], colour);
-}
-
 CanvasTriangle getRandomTriangle(DrawingWindow &window) {
 	std::vector<CanvasPoint> verticies;
 	for(int i = 0; i < 3; i++){
@@ -105,11 +91,31 @@ Colour getRandomColour() {
 	return Colour(rand() % 256, rand() % 256, rand() % 256);
 }
 
+// LINE DRAWING
+
+void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
+	std::vector<CanvasPoint> points = getLinePoints(from, to);
+	for(size_t i = 0; i < points.size(); i++) {
+		float x = points[i].x;
+		float y = points[i].y;
+		window.setPixelColour(round(x), round(y), colourToCode(colour));
+	}
+}
+
+void drawStrokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour){
+	drawLine(window, triangle.vertices[0], triangle.vertices[1], colour);
+	drawLine(window, triangle.vertices[1], triangle.vertices[2], colour);
+	drawLine(window, triangle.vertices[2], triangle.vertices[0], colour);
+}
+
 void drawRandomStrokedTriangle(DrawingWindow &window) {
 	CanvasTriangle triangle = getRandomTriangle(window);
 	Colour colour = getRandomColour();
 	drawStrokedTriangle(window, triangle, colour);
 }
+
+// FILLED TRIANGLES
+// ADD ASSERTIONS
 
 void sortVerticies(std::array<CanvasPoint, 3UL> &verticies){
 	if (verticies[0].y > verticies[1].y){
@@ -134,7 +140,6 @@ CanvasPoint getIntersectionPoint(std::array<CanvasPoint, 3UL> &verticies){
 	return CanvasPoint(x, verticies[1].y);
 }
 
-// FILLED TRIANGLES
 void drawTopTriangle(DrawingWindow &window, CanvasPoint top, CanvasPoint leftPoint, CanvasPoint rightPoint, Colour colour) {
 
 	assert(top.y <= leftPoint.y);
