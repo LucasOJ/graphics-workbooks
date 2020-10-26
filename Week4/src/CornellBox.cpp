@@ -3,6 +3,7 @@
 #include <Utils.h>
 #include <fstream>
 #include <vector>
+#include <map>
 
 #include <math.h> 
 #include <glm/glm.hpp>
@@ -189,6 +190,36 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
 
 // Week 4
 
+std::map<std::string, Colour> loadMaterialsFromMTL(std::string filename) {
+	std::ifstream fileStream = std::ifstream(filename);
+	std::map<std::string, Colour> colourMap;
+	std::string line;
+	std::string colourName;
+	while(std::getline(fileStream, line)){
+		std::vector<std::string> substrs = split(line, ' ');
+		
+		if (substrs[0] == "newmtl"){
+			colourName = substrs[1];
+		}
+
+		if (substrs[0] == "Kd"){
+			std::vector<int> colourComponents;
+			for (int i = 1; i <= 3; i++) {
+				int component = round(std::stof(substrs[i]) * 255);
+				colourComponents.push_back(component);
+			}
+			Colour colour = Colour(
+				colourName,
+				colourComponents[0], 
+				colourComponents[1], 
+				colourComponents[2]
+			);
+			colourMap.insert({ colourName, colour });
+		}
+	}
+	return colourMap;
+}
+
 // OBJ Parser
 
 float formatVertexComponent(std::string str) {
@@ -201,13 +232,21 @@ glm::vec3 getVertex(std::string line, std::vector<glm::vec3> verticies, int vert
 	return verticies[vertexIndex - 1];
 }
 
-std::vector<ModelTriangle> loadFromOBJ(std::string filename) {
+std::vector<ModelTriangle> loadFromOBJ(
+		std::string filename,
+		std::map<std::string, Colour> colourMap
+	) {
 	std::vector<ModelTriangle> modelTriangles;
 	std::ifstream fileStream = std::ifstream(filename);
 	std::string line;
 	std::vector<glm::vec3> verticies;
+	Colour colour;
 	while(std::getline(fileStream, line)){
 		std::vector<std::string> substrs = split(line, ' ');
+
+		if (substrs[0] == "usemtl") {
+			colour = colourMap[substrs[1]];
+		}
 
 		if (substrs[0] == "v") {
 			glm::vec3 point = glm::vec3(
@@ -217,14 +256,13 @@ std::vector<ModelTriangle> loadFromOBJ(std::string filename) {
 			);
 			verticies.push_back(point);
 		}
+
 		if (substrs[0] == "f") {
 			ModelTriangle triangle = ModelTriangle(
 				getVertex(line, verticies, 1),
 				getVertex(line, verticies, 2),
 				getVertex(line, verticies, 3),
-
-				// TODO Load proper colour
-				Colour(255,255,255)
+				colour
 			);
 			modelTriangles.push_back(triangle);
 		}
@@ -269,12 +307,9 @@ int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 	
-	std::vector<ModelTriangle> triangles = loadFromOBJ("cornell-box.obj");
+	std::map<std::string, Colour> colourMap = loadMaterialsFromMTL("cornell-box.mtl");
 
-	for (int i = 0; i < triangles.size(); i++){
-		std::cout << triangles[i] << std::endl;
-	}
-	std::cout << std::endl;
+	std::vector<ModelTriangle> triangles = loadFromOBJ("cornell-box.obj", colourMap);
 
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
