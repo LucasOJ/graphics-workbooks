@@ -15,7 +15,7 @@
 #include <ModelTriangle.h>
 
 #define WIDTH 320
-#define HEIGHT 240
+#define HEIGHT 320
 
 float SCALING_FACTOR = 0.17;
 
@@ -272,6 +272,51 @@ std::vector<ModelTriangle> loadFromOBJ(
 	return modelTriangles;
 }
 
+glm::vec2 vertexToImagePlane(glm::vec3 vertex, float focalLength, glm::vec3 camera) {
+	assert(camera.x == 0);
+	assert(camera.y == 0);
+	assert(focalLength < camera.z);
+
+	float planeScaling = 500;
+	float cameraDist = camera.z - vertex.z;
+	float u = (focalLength / cameraDist) * vertex.x * planeScaling + WIDTH / 2;
+	// negative since y of zero at top of page
+	float v = -((focalLength / cameraDist) * vertex.y * planeScaling) + HEIGHT / 2;
+	return glm::vec2(u, v);
+}
+
+void drawCornellBox(DrawingWindow &window) {
+	std::map<std::string, Colour> colourMap = loadMaterialsFromMTL("cornell-box.mtl");
+
+	std::vector<ModelTriangle> triangles = loadFromOBJ("cornell-box.obj", colourMap);
+	
+
+	glm::vec3 camera = glm::vec3(0.0, 0.0, 2.0);
+	float focalLength = 1.0;
+
+	Colour white = Colour(255,255,255);
+
+	//glm::vec2 vertex = vertexToImagePlane(glm::vec3(0.0, 0.0, 0.0), 2);
+	//std::cout << glm::to_string(vertex) << std::endl;
+	//window.setPixelColour(round(vertex[0]), round(vertex[1]), colourToCode(white));
+	//
+	//glm::vec2 vertex2 = vertexToImagePlane(glm::vec3(-1.0, 1.0, 0.0), 2);
+	//std::cout << glm::to_string(vertex2) << std::endl;
+	//window.setPixelColour(round(vertex2[0]), round(vertex2[1]), colourToCode(Colour(255,0,0)));
+
+	for (int i = 0; i < triangles.size(); i++){
+		std::vector<CanvasPoint> verticies;
+		for (int j = 0; j < 3; j++){
+			glm::vec3 modelVertex = triangles[i].vertices[j];
+			glm::vec2 projectedVertex = vertexToImagePlane(modelVertex, focalLength, camera);
+			verticies.push_back(CanvasPoint(projectedVertex[0], projectedVertex[1]));
+		}
+		CanvasTriangle triangle = CanvasTriangle(verticies[0], verticies[1], verticies[2]);
+		drawFilledTriangle(window, triangle, triangles[i].colour);
+		//drawStrokedTriangle(window, triangle, white);
+	}
+}
+
 // TEMPLATE
 
 void draw(DrawingWindow &window) {
@@ -307,10 +352,8 @@ int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 	
-	std::map<std::string, Colour> colourMap = loadMaterialsFromMTL("cornell-box.mtl");
-
-	std::vector<ModelTriangle> triangles = loadFromOBJ("cornell-box.obj", colourMap);
-
+	drawCornellBox(window);
+	
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
