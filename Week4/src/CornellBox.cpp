@@ -17,6 +17,12 @@
 #define WIDTH 320
 #define HEIGHT 320
 
+//class Environment {
+//	public:
+//		DrawingWindow window;
+//		float depthBuffer[WIDTH][HEIGHT] = {0.0};
+//};
+
 float SCALING_FACTOR = 0.17;
 
 // WEEK 1
@@ -78,14 +84,76 @@ std::vector<CanvasPoint> getLinePoints(CanvasPoint from, CanvasPoint to) {
 	return points;
 }
 
-// LINE DRAWING
+void CHECK(bool assertion, std::string failureMessage, size_t lineNumber) {
+	if (!assertion){
+		std::cout << "Error on line " << std::to_string(lineNumber) << std::endl;
+		std::cout << failureMessage << std::endl;
+		exit(EXIT_FAILURE);
+	}
+}
 
-void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
+
+float interpolatePointDepth(CanvasPoint from, CanvasPoint to, CanvasPoint pointOnLine) {
+	CHECK(from.depth > 0, std::to_string(from.depth), 97);
+
+
+	float percentage = (pointOnLine.x - from.x) / (to.x - from.x);
+
+	//float depthDiff = to.depth - from.depth;
+	//return from.depth + (percentage * depthDiff);
+	
+	//assert(percentage >= 0);
+	
+	// asserts pointOnLine is on the line between from and to
+	// Too sensitive to minute rounding errors?
+	// assert(xPercentage == yPercentage);
+
+	float fromDepth = 1 / from.depth;
+	float toDepth = 1 / to.depth;
+	float depthDiff = toDepth - fromDepth;
+	if (depthDiff == 0) {
+		return from.depth;
+	}
+	float interpolatedDepth = fromDepth + (percentage * depthDiff);
+	float inverseDepth = 1 / interpolatedDepth;
+	assert(inverseDepth > 0);
+	return inverseDepth;
+}
+
+// LINE DRAWING
+void drawLine(
+		DrawingWindow &window,
+		CanvasPoint from,
+		CanvasPoint to,
+		Colour colour
+	){
 	std::vector<CanvasPoint> points = getLinePoints(from, to);
 	for(size_t i = 0; i < points.size(); i++) {
 		float x = points[i].x;
 		float y = points[i].y;
 		window.setPixelColour(round(x), round(y), colourToCode(colour));
+	}
+}
+
+void drawLineWithDepth(
+		DrawingWindow &window,
+		CanvasPoint from,
+		CanvasPoint to,
+		Colour colour,
+		float depthBuffer[WIDTH][HEIGHT]
+	){
+	std::vector<CanvasPoint> points = getLinePoints(from, to);
+	for(size_t i = 0; i < points.size(); i++) {
+		float x = points[i].x;
+		float y = points[i].y;
+		float depth = interpolatePointDepth(from, to, points[i]);
+		int xCoord = round(x);
+		int yCoord = round(y);
+
+		if (depthBuffer[xCoord][yCoord] <= depth){
+			window.setPixelColour(xCoord, yCoord, colourToCode(colour));
+			depthBuffer[xCoord][yCoord] = depth;
+		}
 	}
 }
 
@@ -121,74 +189,103 @@ CanvasPoint getIntersectionPoint(std::array<CanvasPoint, 3UL> &verticies){
 	return CanvasPoint(x, verticies[1].y);
 }
 
-void drawTopTriangle(DrawingWindow &window, CanvasPoint top, CanvasPoint leftPoint, CanvasPoint rightPoint, Colour colour) {
+void drawTopTriangle(
+		DrawingWindow &window, 
+		CanvasPoint top, 
+		CanvasPoint bottomLeftPoint, 
+		CanvasPoint bottomRightPoint, 
+		Colour colour,
+		float depthBuffer[WIDTH][HEIGHT]
+	) {
+	assert(top.y <= bottomLeftPoint.y);
+	assert(top.y <= bottomRightPoint.y);
+	assert(bottomLeftPoint.x <= bottomRightPoint.x);
 
-	assert(top.y <= leftPoint.y);
-	assert(top.y <= rightPoint.y);
-	assert(leftPoint.x <= rightPoint.x);
+	float verticalSteps = bottomLeftPoint.y - top.y;
 
-	float verticalSteps = leftPoint.y - top.y;
-
-	float leftStepDelta = (leftPoint.x - top.x) / verticalSteps;
-	float rightStepDelta = (rightPoint.x - top.x) / verticalSteps;
+	float leftStepDelta = (bottomLeftPoint.x - top.x) / verticalSteps;
+	float rightStepDelta = (bottomRightPoint.x - top.x) / verticalSteps;
 
 	float currentLeftX = top.x;
 	float currentRightX = top.x;
 
-	for (float y = top.y; y <= leftPoint.y; y++) {
+	for (float y = top.y; y <= bottomLeftPoint.y; y++) {
 		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
+		leftPoint.depth = interpolatePointDepth(top, bottomLeftPoint, leftPoint);
+		
 		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
-		drawLine(window, leftPoint, rightPoint, colour);
+		rightPoint.depth = interpolatePointDepth(top, bottomRightPoint, rightPoint);
+
+		drawLineWithDepth(window, leftPoint, rightPoint, colour, depthBuffer);
 
 		currentLeftX += leftStepDelta;
 		currentRightX += rightStepDelta;
 	}
 }
 
-void drawBottomTriangle(DrawingWindow &window, CanvasPoint bottom, CanvasPoint leftPoint, CanvasPoint rightPoint, Colour colour) {
+void drawBottomTriangle(
+		DrawingWindow &window, 
+		CanvasPoint bottom, 
+		CanvasPoint topLeftPoint, 
+		CanvasPoint topRightPoint,
+		Colour colour,
+		float depthBuffer[WIDTH][HEIGHT]	
+	) {
 
-	assert(leftPoint.y <= bottom.y);
-	assert(rightPoint.y <= bottom.y);
-	assert(leftPoint.x <= rightPoint.x);
+	assert(topLeftPoint.y <= bottom.y);
+	assert(topRightPoint.y <= bottom.y);
+	assert(topLeftPoint.x <= topRightPoint.x);
 
-	float verticalSteps = bottom.y - leftPoint.y;
+	float verticalSteps = bottom.y - topLeftPoint.y;
 
-	float leftStepDelta = (bottom.x - leftPoint.x) / verticalSteps;
-	float rightStepDelta = (bottom.x - rightPoint.x) / verticalSteps;
+	float leftStepDelta = (bottom.x - topLeftPoint.x) / verticalSteps;
+	float rightStepDelta = (bottom.x - topRightPoint.x) / verticalSteps;
 
-	float currentLeftX = leftPoint.x;
-	float currentRightX = rightPoint.x;
+	float currentLeftX = topLeftPoint.x;
+	float currentRightX = topRightPoint.x;
 
-	for (float y = leftPoint.y; y <= bottom.y; y++) {
+	for (float y = topLeftPoint.y; y <= bottom.y; y++) {
 		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
+		leftPoint.depth = interpolatePointDepth(topLeftPoint, bottom, leftPoint);
+
 		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
-		drawLine(window, leftPoint, rightPoint, colour);
+		rightPoint.depth = interpolatePointDepth(topRightPoint, bottom, rightPoint);
+
+		drawLineWithDepth(window, leftPoint, rightPoint, colour, depthBuffer);
 
 		currentLeftX += leftStepDelta;
 		currentRightX += rightStepDelta;
 	}
 }
 
-void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour){
+void drawFilledTriangle(
+		DrawingWindow &window, 
+		CanvasTriangle triangle, 
+		Colour colour, 
+		float depthBuffer[WIDTH][HEIGHT]
+	){	
 	sortVerticies(triangle.vertices);
-	
-	CanvasPoint intersectionPoint = getIntersectionPoint(triangle.vertices);
 
 	CanvasPoint top = triangle.vertices[0];
 	CanvasPoint middle = triangle.vertices[1];
 	CanvasPoint bottom = triangle.vertices[2];
+	
+	CanvasPoint intersectionPoint = getIntersectionPoint(triangle.vertices);
+	intersectionPoint.depth = interpolatePointDepth(top, bottom, intersectionPoint);
 
 	CanvasPoint leftPoint = middle;
 	CanvasPoint rightPoint = intersectionPoint;
 	if (rightPoint.x < leftPoint.x){
-		std::swap(leftPoint, rightPoint);
+		std::swap(leftPoint, rightPoint);	
 	}
 
-	drawTopTriangle(window, top, leftPoint, rightPoint, colour);
-	drawBottomTriangle(window, bottom, leftPoint, rightPoint, colour);
+	drawTopTriangle(window, top, leftPoint, rightPoint, colour, depthBuffer);
+	drawBottomTriangle(window, bottom, leftPoint, rightPoint, colour, depthBuffer);
 }
 
 // Week 4
+
+// MTL Parser
 
 std::map<std::string, Colour> loadMaterialsFromMTL(std::string filename) {
 	std::ifstream fileStream = std::ifstream(filename);
@@ -289,30 +386,24 @@ void drawCornellBox(DrawingWindow &window) {
 	std::map<std::string, Colour> colourMap = loadMaterialsFromMTL("cornell-box.mtl");
 
 	std::vector<ModelTriangle> triangles = loadFromOBJ("cornell-box.obj", colourMap);
-	
 
-	glm::vec3 camera = glm::vec3(0.0, 0.0, 2.0);
-	float focalLength = 1.0;
+	float depthBuffer[WIDTH][HEIGHT] = {0.0};
+
+	glm::vec3 camera = glm::vec3(0.0, 0.0, 4.0);
+	float focalLength = 2.0;
 
 	Colour white = Colour(255,255,255);
-
-	//glm::vec2 vertex = vertexToImagePlane(glm::vec3(0.0, 0.0, 0.0), 2);
-	//std::cout << glm::to_string(vertex) << std::endl;
-	//window.setPixelColour(round(vertex[0]), round(vertex[1]), colourToCode(white));
-	//
-	//glm::vec2 vertex2 = vertexToImagePlane(glm::vec3(-1.0, 1.0, 0.0), 2);
-	//std::cout << glm::to_string(vertex2) << std::endl;
-	//window.setPixelColour(round(vertex2[0]), round(vertex2[1]), colourToCode(Colour(255,0,0)));
 
 	for (int i = 0; i < triangles.size(); i++){
 		std::vector<CanvasPoint> verticies;
 		for (int j = 0; j < 3; j++){
 			glm::vec3 modelVertex = triangles[i].vertices[j];
 			glm::vec2 projectedVertex = vertexToImagePlane(modelVertex, focalLength, camera);
-			verticies.push_back(CanvasPoint(projectedVertex[0], projectedVertex[1]));
+			float depth = 1 / (focalLength - modelVertex.z);
+			verticies.push_back(CanvasPoint(projectedVertex[0], projectedVertex[1], depth));
 		}
 		CanvasTriangle triangle = CanvasTriangle(verticies[0], verticies[1], verticies[2]);
-		drawFilledTriangle(window, triangle, triangles[i].colour);
+		drawFilledTriangle(window, triangle, triangles[i].colour, depthBuffer);
 		//drawStrokedTriangle(window, triangle, white);
 	}
 }
