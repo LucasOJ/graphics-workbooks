@@ -94,30 +94,21 @@ void CHECK(bool assertion, std::string failureMessage, size_t lineNumber) {
 
 
 float interpolatePointDepth(CanvasPoint from, CanvasPoint to, CanvasPoint pointOnLine) {
-	CHECK(from.depth > 0, std::to_string(from.depth), 97);
+	assert(from.depth > 0);
+	assert(to.depth > 0);
 
-
-	float percentage = (pointOnLine.x - from.x) / (to.x - from.x);
-
-	//float depthDiff = to.depth - from.depth;
-	//return from.depth + (percentage * depthDiff);
-	
-	//assert(percentage >= 0);
-	
-	// asserts pointOnLine is on the line between from and to
-	// Too sensitive to minute rounding errors?
-	// assert(xPercentage == yPercentage);
-
-	float fromDepth = 1 / from.depth;
-	float toDepth = 1 / to.depth;
-	float depthDiff = toDepth - fromDepth;
-	if (depthDiff == 0) {
+	if (from.x == to.x){
+		assert(from.depth == to.depth);
 		return from.depth;
 	}
-	float interpolatedDepth = fromDepth + (percentage * depthDiff);
-	float inverseDepth = 1 / interpolatedDepth;
-	assert(inverseDepth > 0);
-	return inverseDepth;
+
+	float depthDiff = to.depth - from.depth;
+	float percentage = (pointOnLine.x - from.x) / (to.x - from.x);
+	float interpolatedDepth = from.depth + (percentage * depthDiff);
+
+	assert(interpolatedDepth > 0);
+
+	return interpolatedDepth;
 }
 
 // LINE DRAWING
@@ -150,7 +141,7 @@ void drawLineWithDepth(
 		int xCoord = round(x);
 		int yCoord = round(y);
 
-		if (depthBuffer[xCoord][yCoord] <= depth){
+		if (depthBuffer[xCoord][yCoord] < depth){
 			window.setPixelColour(xCoord, yCoord, colourToCode(colour));
 			depthBuffer[xCoord][yCoord] = depth;
 		}
