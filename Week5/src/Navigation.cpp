@@ -298,6 +298,125 @@ void drawFilledTriangle(
 	drawBottomTriangle(window, bottom, leftPoint, rightPoint, colour, depthBuffer);
 }
 
+// TEXTURE FUNCTIONS
+uint32_t getTexturePixelColour(TextureMap textureMap, float x, float y){
+	uint32_t index = round(y) * textureMap.width + round(x);
+	return textureMap.pixels[index];
+} 
+
+TexturePoint interpolateIntoTextureMap(CanvasPoint from, CanvasPoint to, CanvasPoint pointOnLine) {
+	float xPercentage = (pointOnLine.x - from.x) / (to.x - from.x);
+	float yPercentage = (pointOnLine.x - from.x) / (to.x - from.x);
+	
+	// asserts pointOnLine is on the line between from and to
+	// Too sensitive to minute rounding errors?
+	// assert(xPercentage == yPercentage);
+
+	float texturePointXDiff = to.texturePoint.x - from.texturePoint.x;
+	float texturePointYDiff = to.texturePoint.y - from.texturePoint.y;
+	float interpolatedPointX = from.texturePoint.x + (xPercentage * texturePointXDiff);
+	float interpolatedPointY = from.texturePoint.y + (yPercentage * texturePointYDiff);
+
+	return TexturePoint(interpolatedPointX, interpolatedPointY);
+}
+
+void drawTextureLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, TextureMap textureMap) {
+	std::vector<CanvasPoint> points = getLinePoints(from, to);
+	for(size_t i = 0; i < points.size(); i++) {
+		float x = points[i].x;
+		float y = points[i].y;
+		TexturePoint texturePoint = interpolateIntoTextureMap(from, to, points[i]);
+		uint32_t colourCode = getTexturePixelColour(textureMap, texturePoint.x, texturePoint.y);
+		window.setPixelColour(round(x), round(y), colourCode);
+	}
+}
+
+void drawTopTextureTriangle(
+	DrawingWindow &window, 
+	CanvasPoint top, 
+	CanvasPoint bottomLeftPoint, 
+	CanvasPoint bottomRightPoint,
+	TextureMap textureMap) {
+
+	assert(top.y <= bottomLeftPoint.y);
+	assert(top.y <= bottomRightPoint.y);
+	assert(bottomLeftPoint.x <= bottomRightPoint.x);
+	assert(bottomLeftPoint.y == bottomRightPoint.y);
+
+	float verticalSteps = bottomLeftPoint.y - top.y;
+
+	float leftStepDelta = (bottomLeftPoint.x - top.x) / verticalSteps;
+	float rightStepDelta = (bottomRightPoint.x - top.x) / verticalSteps;
+
+	float currentLeftX = top.x;
+	float currentRightX = top.x;
+
+	for (float y = top.y; y <= bottomLeftPoint.y; y++) {
+		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
+		leftPoint.texturePoint = interpolateIntoTextureMap(top, bottomLeftPoint, leftPoint);
+
+		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
+		rightPoint.texturePoint = interpolateIntoTextureMap(top, bottomRightPoint, rightPoint);
+
+		drawTextureLine(window, leftPoint, rightPoint, textureMap);
+
+		currentLeftX += leftStepDelta;
+		currentRightX += rightStepDelta;
+	}
+}
+
+void drawBottomTextureTriangle(
+	DrawingWindow &window, 
+	CanvasPoint bottom, 
+	CanvasPoint topLeftPoint, 
+	CanvasPoint topRightPoint,
+	TextureMap textureMap) {
+
+	assert(topLeftPoint.y <= bottom.y);
+	assert(topRightPoint.y <= bottom.y);
+	assert(topLeftPoint.x <= topRightPoint.x);
+	assert(topLeftPoint.y == topRightPoint.y);
+
+	float verticalSteps = bottom.y - topLeftPoint.y;
+
+	float leftStepDelta = (bottom.x - topLeftPoint.x) / verticalSteps;
+	float rightStepDelta = (bottom.x - topRightPoint.x) / verticalSteps;
+
+	float currentLeftX = topLeftPoint.x;
+	float currentRightX = topRightPoint.x;
+
+	for (float y = topLeftPoint.y; y <= bottom.y; y++) {
+		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
+		leftPoint.texturePoint = interpolateIntoTextureMap(topLeftPoint, bottom, leftPoint);
+		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
+		rightPoint.texturePoint = interpolateIntoTextureMap(topRightPoint, bottom, rightPoint);
+		drawTextureLine(window, leftPoint, rightPoint, textureMap);
+		currentLeftX += leftStepDelta;
+		currentRightX += rightStepDelta;
+	}
+}
+
+void drawTextureMapTriangle(DrawingWindow &window, CanvasTriangle triangle, TextureMap textureMap){
+
+	sortVerticies(triangle.vertices);
+	CanvasPoint top = triangle.vertices[0];
+	CanvasPoint middle = triangle.vertices[1];
+	CanvasPoint bottom = triangle.vertices[2];
+
+	CanvasPoint intersectionPoint = getIntersectionPoint(triangle.vertices);
+	intersectionPoint.texturePoint = interpolateIntoTextureMap(top, bottom, intersectionPoint);
+
+	CanvasPoint leftPoint = middle;
+	CanvasPoint rightPoint = intersectionPoint;
+	if (rightPoint.x < leftPoint.x){
+		std::swap(leftPoint, rightPoint);
+	}
+
+	drawTopTextureTriangle(window, top, leftPoint, rightPoint, textureMap);
+	drawBottomTextureTriangle(window, bottom, leftPoint, rightPoint, textureMap);
+}
+
+
 // Week 4
 
 // MTL Parser
@@ -356,16 +475,18 @@ int objIndexToVertexIndex(std::string objIndex) {
 
 std::vector<ModelTriangle> loadFromOBJ(
 		std::string filename,
-		std::map<std::string, Material> materialMap
+		std::map<std::string, Material> materialMap,
+		std::vector<MaterialType> &materialTypes
 	) {
 	std::vector<ModelTriangle> modelTriangles;
 	std::ifstream fileStream = std::ifstream(filename);
 	std::string line;
 	std::vector<glm::vec3> verticies;
 	std::vector<TexturePoint> texturePoints;
-
+	bool materialTypeSet;
 	Material material;
 	while(std::getline(fileStream, line)){
+		materialTypeSet = false;
 		std::vector<std::string> substrs = split(line, ' ');
 
 		if (substrs[0] == "usemtl") {
@@ -405,13 +526,16 @@ std::vector<ModelTriangle> loadFromOBJ(
 				// USING COLOUR
 				if (vertexIndexes[1] == ""){
 					triangle.colour = material.colour;
+					if (!materialTypeSet) materialTypes.push_back(COLOUR);
 				} 
 				
 				// USING TEXTURE MAP
 				else {
 					int texturePointIndex = objIndexToVertexIndex(vertexIndexes[1]);
 					triangle.texturePoints[index] = texturePoints[texturePointIndex];
+					if (!materialTypeSet) materialTypes.push_back(TEXTURE);
 				}
+				materialTypeSet = true;
 			} 
 			modelTriangles.push_back(triangle);
 		}
@@ -436,9 +560,11 @@ glm::vec2 vertexToImagePlane(glm::vec3 vertex, float focalLength, glm::vec3 came
 }
 
 void drawCornellBox(DrawingWindow &window) {
+	// TODO PULL INTO SEPERATE FUNCTION
 	std::map<std::string, Material> materialMap = loadMaterialsFromMTL("textured-cornell-box.mtl");
-
-	std::vector<ModelTriangle> triangles = loadFromOBJ("textured-cornell-box.obj", materialMap);
+	std::vector<MaterialType> materialTypes;
+	std::vector<ModelTriangle> triangles = loadFromOBJ("textured-cornell-box.obj", materialMap, materialTypes);
+	TextureMap textureMap = TextureMap("texture.ppm");
 
 	float depthBuffer[WIDTH][HEIGHT] = {0.0};
 	glm::vec3 camera = glm::vec3(0.0, 0.0, 4.0);
@@ -450,11 +576,25 @@ void drawCornellBox(DrawingWindow &window) {
 			glm::vec3 modelVertex = triangles[i].vertices[j];
 			glm::vec2 projectedVertex = vertexToImagePlane(modelVertex, focalLength, camera);
 			float depth = 1 / (focalLength - modelVertex.z);
-			verticies.push_back(CanvasPoint(projectedVertex[0], projectedVertex[1], depth));
+			CanvasPoint point = CanvasPoint(projectedVertex[0], projectedVertex[1], depth);
+
+			if (materialTypes[i] == TEXTURE){
+				point.texturePoint = triangles[i].texturePoints[j];
+			}
+
+			verticies.push_back(point);
 		}
 		CanvasTriangle triangle = CanvasTriangle(verticies[0], verticies[1], verticies[2]);
-		drawFilledTriangle(window, triangle, triangles[i].colour, depthBuffer);
-		//drawStrokedTriangle(window, triangle, white);
+		if (materialTypes[i] == TEXTURE){
+
+			// TODO generate this from materials
+			// Load materials from name after?
+			drawTextureMapTriangle(window, triangle, textureMap);
+		}
+
+		else {
+			drawFilledTriangle(window, triangle, triangles[i].colour, depthBuffer);
+		}
 	}
 }
 
