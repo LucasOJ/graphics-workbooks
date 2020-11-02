@@ -320,23 +320,40 @@ TexturePoint interpolateIntoTextureMap(CanvasPoint from, CanvasPoint to, CanvasP
 	return TexturePoint(interpolatedPointX, interpolatedPointY);
 }
 
-void drawTextureLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, TextureMap textureMap) {
+void drawTextureLine(
+		DrawingWindow &window, 
+		CanvasPoint from, 
+		CanvasPoint to, 
+		TextureMap textureMap,
+		float depthBuffer[WIDTH][HEIGHT]
+	){
 	std::vector<CanvasPoint> points = getLinePoints(from, to);
 	for(size_t i = 0; i < points.size(); i++) {
 		float x = points[i].x;
 		float y = points[i].y;
+		
+		float depth = interpolatePointDepth(from, to, points[i]);
+		int xCoord = round(x);
+		int yCoord = round(y);
+
 		TexturePoint texturePoint = interpolateIntoTextureMap(from, to, points[i]);
 		uint32_t colourCode = getTexturePixelColour(textureMap, texturePoint.x, texturePoint.y);
-		window.setPixelColour(round(x), round(y), colourCode);
+
+		if (depthBuffer[xCoord][yCoord] < depth){
+			window.setPixelColour(xCoord, yCoord, colourCode);
+			depthBuffer[xCoord][yCoord] = depth;
+		}
 	}
 }
 
 void drawTopTextureTriangle(
-	DrawingWindow &window, 
-	CanvasPoint top, 
-	CanvasPoint bottomLeftPoint, 
-	CanvasPoint bottomRightPoint,
-	TextureMap textureMap) {
+		DrawingWindow &window, 
+		CanvasPoint top, 
+		CanvasPoint bottomLeftPoint, 
+		CanvasPoint bottomRightPoint,
+		TextureMap textureMap,
+		float depthBuffer[WIDTH][HEIGHT]
+	){
 
 	assert(top.y <= bottomLeftPoint.y);
 	assert(top.y <= bottomRightPoint.y);
@@ -354,11 +371,13 @@ void drawTopTextureTriangle(
 	for (float y = top.y; y <= bottomLeftPoint.y; y++) {
 		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
 		leftPoint.texturePoint = interpolateIntoTextureMap(top, bottomLeftPoint, leftPoint);
+		leftPoint.depth = interpolatePointDepth(top, bottomLeftPoint, leftPoint);
 
 		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
 		rightPoint.texturePoint = interpolateIntoTextureMap(top, bottomRightPoint, rightPoint);
+		rightPoint.depth = interpolatePointDepth(top, bottomRightPoint, rightPoint);
 
-		drawTextureLine(window, leftPoint, rightPoint, textureMap);
+		drawTextureLine(window, leftPoint, rightPoint, textureMap, depthBuffer);
 
 		currentLeftX += leftStepDelta;
 		currentRightX += rightStepDelta;
@@ -366,11 +385,13 @@ void drawTopTextureTriangle(
 }
 
 void drawBottomTextureTriangle(
-	DrawingWindow &window, 
-	CanvasPoint bottom, 
-	CanvasPoint topLeftPoint, 
-	CanvasPoint topRightPoint,
-	TextureMap textureMap) {
+		DrawingWindow &window, 
+		CanvasPoint bottom, 
+		CanvasPoint topLeftPoint, 
+		CanvasPoint topRightPoint,
+		TextureMap textureMap,
+		float depthBuffer[WIDTH][HEIGHT]
+	){
 
 	assert(topLeftPoint.y <= bottom.y);
 	assert(topRightPoint.y <= bottom.y);
@@ -388,15 +409,24 @@ void drawBottomTextureTriangle(
 	for (float y = topLeftPoint.y; y <= bottom.y; y++) {
 		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
 		leftPoint.texturePoint = interpolateIntoTextureMap(topLeftPoint, bottom, leftPoint);
+		leftPoint.depth = interpolatePointDepth(topLeftPoint, bottom, leftPoint);
+
 		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
 		rightPoint.texturePoint = interpolateIntoTextureMap(topRightPoint, bottom, rightPoint);
-		drawTextureLine(window, leftPoint, rightPoint, textureMap);
+		rightPoint.depth = interpolatePointDepth(topRightPoint, bottom, rightPoint);
+
+		drawTextureLine(window, leftPoint, rightPoint, textureMap, depthBuffer);
 		currentLeftX += leftStepDelta;
 		currentRightX += rightStepDelta;
 	}
 }
 
-void drawTextureMapTriangle(DrawingWindow &window, CanvasTriangle triangle, TextureMap textureMap){
+void drawTextureMapTriangle(
+		DrawingWindow &window, 
+		CanvasTriangle triangle, 
+		TextureMap textureMap,
+		float depthBuffer[WIDTH][HEIGHT]
+	){
 
 	sortVerticies(triangle.vertices);
 	CanvasPoint top = triangle.vertices[0];
@@ -405,6 +435,7 @@ void drawTextureMapTriangle(DrawingWindow &window, CanvasTriangle triangle, Text
 
 	CanvasPoint intersectionPoint = getIntersectionPoint(triangle.vertices);
 	intersectionPoint.texturePoint = interpolateIntoTextureMap(top, bottom, intersectionPoint);
+	intersectionPoint.depth = interpolatePointDepth(top, bottom, intersectionPoint);
 
 	CanvasPoint leftPoint = middle;
 	CanvasPoint rightPoint = intersectionPoint;
@@ -412,8 +443,8 @@ void drawTextureMapTriangle(DrawingWindow &window, CanvasTriangle triangle, Text
 		std::swap(leftPoint, rightPoint);
 	}
 
-	drawTopTextureTriangle(window, top, leftPoint, rightPoint, textureMap);
-	drawBottomTextureTriangle(window, bottom, leftPoint, rightPoint, textureMap);
+	drawTopTextureTriangle(window, top, leftPoint, rightPoint, textureMap, depthBuffer);
+	drawBottomTextureTriangle(window, bottom, leftPoint, rightPoint, textureMap, depthBuffer);
 }
 
 
@@ -589,7 +620,7 @@ void drawCornellBox(DrawingWindow &window) {
 
 			// TODO generate this from materials
 			// Load materials from name after?
-			drawTextureMapTriangle(window, triangle, textureMap);
+			drawTextureMapTriangle(window, triangle, textureMap, depthBuffer);
 		}
 
 		else {
