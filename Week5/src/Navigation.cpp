@@ -594,17 +594,15 @@ glm::vec2 vertexToImagePlane(glm::vec3 vertex, float focalLength, glm::vec3 came
 	return glm::vec2(u, v);
 }
 
-void drawCornellBox(DrawingWindow &window) {
-	// TODO PULL INTO SEPERATE FUNCTION
-	std::map<std::string, Material> materialMap = loadMaterialsFromMTL("textured-cornell-box.mtl");
-	std::vector<MaterialType> materialTypes;
-	std::vector<ModelTriangle> triangles = loadFromOBJ("textured-cornell-box.obj", materialMap, materialTypes);
-	TextureMap textureMap = TextureMap("texture.ppm");
-
-	float depthBuffer[WIDTH][HEIGHT] = {0.0};
-	glm::vec3 camera = glm::vec3(0.0, -0.0, 2.0);
-	float focalLength = 1.0;
-	Colour white = Colour(255,255,255);
+void drawCornellBox(
+		DrawingWindow &window,
+		std::vector<ModelTriangle> triangles,
+		std::vector<MaterialType> materialTypes,
+		TextureMap textureMap,
+		float depthBuffer[WIDTH][HEIGHT],
+		glm::vec3 camera,
+		float focalLength
+	) {
 	for (int i = 0; i < triangles.size(); i++){
 		std::vector<CanvasPoint> verticies;
 		for (int j = 0; j < 3; j++){
@@ -635,46 +633,83 @@ void drawCornellBox(DrawingWindow &window) {
 
 // TEMPLATE
 
-void draw(DrawingWindow &window) {
+void draw(
+		DrawingWindow &window,
+		std::vector<ModelTriangle> triangles,
+		std::vector<MaterialType> materialTypes,
+		TextureMap textureMap,
+		float depthBuffer[WIDTH][HEIGHT],
+		glm::vec3 camera,
+		float focalLength
+	) {
 	window.clearPixels();
 
-	for (size_t y = 0; y < window.height; y++) {
-	
-		for (size_t x = 0; x < window.width; x++) {
-			float alpha = 255;
-			float red = 0;
-			float green = 0;
-			float blue = 0;
-			uint32_t colour = (int(alpha) << 24) + (int(red) << 16) + (int(green) << 8) + int(blue);
-			window.setPixelColour(x, y, colour);
+	for (int i = 0; i < WIDTH; i++) {
+		for (int j = 0; j < HEIGHT; j++) {
+			depthBuffer[i][j] = 0.0;
 		}
 	}
+
+	drawCornellBox(
+		window,
+		triangles,
+		materialTypes,
+		textureMap,
+		depthBuffer,
+		camera,
+		focalLength
+	);
+	//CanvasTriangle triag = CanvasTriangle(
+	//	CanvasPoint(0.0,0.0,0.1),
+	//	CanvasPoint(WIDTH - 1, 0.0, 0.1),
+	//	CanvasPoint(0.0, HEIGHT - 1, 0.1)
+	//);
+	//
+	//drawFilledTriangle(window, triag, Colour(255,0,0), depthBuffer);
 }
 
 void update(DrawingWindow &window) {
 	// Function for performing animation (shifting artifacts or moving the camera)
 }
 
-void handleEvent(SDL_Event event, DrawingWindow &window) {
+void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec3 &camera) {
+	float step = 0.1;
 	if (event.type == SDL_KEYDOWN) {
-		if (event.key.keysym.sym == SDLK_LEFT) std::cout << "LEFT" << std::endl;
-		else if (event.key.keysym.sym == SDLK_RIGHT) std::cout << "RIGHT" << std::endl;
-		else if (event.key.keysym.sym == SDLK_UP) std::cout << "UP" << std::endl;
-		else if (event.key.keysym.sym == SDLK_DOWN) std::cout << "DOWN" << std::endl;
+		if (event.key.keysym.sym == SDLK_LEFT) camera += glm::vec3(-step, 0.0, 0.0);
+		else if (event.key.keysym.sym == SDLK_RIGHT) camera += glm::vec3(step, 0.0, 0.0);
+		else if (event.key.keysym.sym == SDLK_UP) camera += glm::vec3(0.0, step, 0.0);
+		else if (event.key.keysym.sym == SDLK_DOWN) camera += glm::vec3(0.0, -step, 0.0);
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) window.savePPM("output.ppm");
 }
 
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
-	
-	drawCornellBox(window);
+	std::map<std::string, Material> materialMap = loadMaterialsFromMTL("textured-cornell-box.mtl");
+	std::vector<MaterialType> materialTypes;
+	std::vector<ModelTriangle> triangles = loadFromOBJ("textured-cornell-box.obj", materialMap, materialTypes);
+	TextureMap textureMap = TextureMap("texture.ppm");
+
+	float depthBuffer[WIDTH][HEIGHT];
+
+	glm::vec3 camera = glm::vec3(0.0, 0.0, 6.0);
+	float focalLength = 2.0;
 	
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
-		if (window.pollForInputEvents(event)) handleEvent(event, window);
+		if (window.pollForInputEvents(event)) handleEvent(event, window, camera);
+		
+
 		update(window);
-	
+		draw(
+			window,
+			triangles,
+			materialTypes,
+			textureMap,
+			depthBuffer,
+			camera,
+			focalLength
+		);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
