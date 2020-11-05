@@ -121,13 +121,14 @@ float interpolatePointDepth(CanvasPoint from, CanvasPoint to, CanvasPoint pointO
 	assert(from.depth > 0);
 	assert(to.depth > 0);
 
-	if (from.x == to.x){
-		assert(from.depth == to.depth);
+	float depthDiff = to.depth - from.depth;
+	if (depthDiff == 0.0) {
 		return from.depth;
 	}
-
-	float depthDiff = to.depth - from.depth;
+	
 	float percentage = (pointOnLine.x - from.x) / (to.x - from.x);
+
+	CHECK(percentage >= 0, std::to_string(percentage), 131);
 	float interpolatedDepth = from.depth + (percentage * depthDiff);
 
 	assert(interpolatedDepth > 0);
@@ -136,6 +137,10 @@ float interpolatePointDepth(CanvasPoint from, CanvasPoint to, CanvasPoint pointO
 }
 
 // LINE DRAWING
+bool validCoord(int x, int y) {
+	return 0 <= x && x < WIDTH && 0 <= y && y < HEIGHT;
+}
+
 void drawLine(
 		DrawingWindow &window,
 		CanvasPoint from,
@@ -144,9 +149,12 @@ void drawLine(
 	){
 	std::vector<CanvasPoint> points = getLinePoints(from, to);
 	for(size_t i = 0; i < points.size(); i++) {
-		float x = points[i].x;
-		float y = points[i].y;
-		window.setPixelColour(round(x), round(y), colourToCode(colour));
+		int x = round(points[i].x);
+		int y = round(points[i].y);
+		
+		if (validCoord(x, y)){
+			window.setPixelColour(x, y, colourToCode(colour));
+		};
 	}
 }
 
@@ -165,9 +173,7 @@ void drawLineWithDepth(
 		int xCoord = round(x);
 		int yCoord = round(y);
 
-		// TODO check if off screen
-
-		if (depthBuffer[xCoord][yCoord] < depth){
+		if (depthBuffer[xCoord][yCoord] < depth && validCoord(xCoord, yCoord)){
 			window.setPixelColour(xCoord, yCoord, colourToCode(colour));
 			depthBuffer[xCoord][yCoord] = depth;
 		}
@@ -341,7 +347,7 @@ void drawTextureLine(
 		TexturePoint texturePoint = interpolateIntoTextureMap(from, to, points[i]);
 		uint32_t colourCode = getTexturePixelColour(textureMap, texturePoint.x, texturePoint.y);
 
-		if (depthBuffer[xCoord][yCoord] < depth){
+		if (depthBuffer[xCoord][yCoord] < depth && validCoord(xCoord, yCoord)){
 			window.setPixelColour(xCoord, yCoord, colourCode);
 			depthBuffer[xCoord][yCoord] = depth;
 		}
@@ -422,6 +428,8 @@ void drawBottomTextureTriangle(
 		currentRightX += rightStepDelta;
 	}
 }
+
+// TODO: COMPRESS TO TAKE MATERIAL NOT COLOUR
 
 void drawTextureMapTriangle(
 		DrawingWindow &window, 
@@ -579,6 +587,8 @@ std::vector<ModelTriangle> loadFromOBJ(
 	return modelTriangles;
 }
 
+// Cornell box
+
 glm::vec2 vertexToImagePlane(glm::vec3 vertex, float focalLength, glm::vec3 camera) {
 	assert(focalLength < camera.z);
 
@@ -631,7 +641,28 @@ void drawCornellBox(
 	}
 }
 
-// TEMPLATE
+// Transformation
+
+glm::vec3 rotateX(glm::vec3 camera, float theta){
+	glm::mat3 rotation = glm::mat3(
+		1.0, 0.0, 0.0, // first column
+		0.0, cos(theta), sin(theta), // second column
+		0.0, -sin(theta), cos(theta) // third column
+	);
+	return rotation * camera;
+}
+
+
+glm::vec3 rotateY(glm::vec3 camera, float theta){
+	glm::mat3 rotation = glm::mat3(
+		cos(theta), 0.0, -sin(theta), // first column
+		0.0, 1.0, 0.0, // second column
+		sin(theta), 0.0, cos(theta) // third column
+	);
+	return rotation * camera;
+}
+
+// EVENT LOOPS
 
 void draw(
 		DrawingWindow &window,
@@ -673,12 +704,17 @@ void update(DrawingWindow &window) {
 }
 
 void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec3 &camera) {
-	float step = 0.1;
+	float TRANSLATION_STEP = 0.05;
+	float ROTATION_STEP = M_PI * 0.001;
 	if (event.type == SDL_KEYDOWN) {
-		if (event.key.keysym.sym == SDLK_LEFT) camera += glm::vec3(-step, 0.0, 0.0);
-		else if (event.key.keysym.sym == SDLK_RIGHT) camera += glm::vec3(step, 0.0, 0.0);
-		else if (event.key.keysym.sym == SDLK_UP) camera += glm::vec3(0.0, step, 0.0);
-		else if (event.key.keysym.sym == SDLK_DOWN) camera += glm::vec3(0.0, -step, 0.0);
+		if (event.key.keysym.sym == SDLK_LEFT) camera += glm::vec3(-TRANSLATION_STEP, 0.0, 0.0);
+		else if (event.key.keysym.sym == SDLK_RIGHT) camera += glm::vec3(TRANSLATION_STEP, 0.0, 0.0);
+		else if (event.key.keysym.sym == SDLK_UP) camera += glm::vec3(0.0, TRANSLATION_STEP, 0.0);
+		else if (event.key.keysym.sym == SDLK_DOWN) camera += glm::vec3(0.0, -TRANSLATION_STEP, 0.0);
+		else if (event.key.keysym.sym == SDLK_a) camera = rotateY(camera, -ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_d) camera = rotateY(camera, ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_w) camera = rotateX(camera, -ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_s) camera = rotateX(camera, ROTATION_STEP);
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) window.savePPM("output.ppm");
 }
 
@@ -700,7 +736,7 @@ int main(int argc, char *argv[]) {
 		if (window.pollForInputEvents(event)) handleEvent(event, window, camera);
 		
 
-		update(window);
+	update(window);
 		draw(
 			window,
 			triangles,
