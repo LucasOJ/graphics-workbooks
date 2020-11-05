@@ -49,31 +49,6 @@ class Material {
 
 float SCALING_FACTOR = 0.17;
 
-// WEEK 1
-
-std::vector<float> interpolateSingleFloats(float from, float to, int numberOfValues) {
-	std::vector<float> result;
-	float delta = (to - from) / (numberOfValues - 1);
-	for(size_t i=0; i<numberOfValues; i++) result.push_back(from + i * delta);
-	return result;
-}
-
-// WEEK 2
-
-std::vector<glm::vec3> interpolateThreeElementValues(glm::vec3 from, glm::vec3 to, int numberOfValues){
-	std::vector<float> channel1 = interpolateSingleFloats(from[0], to[0], numberOfValues);
-	std::vector<float> channel2 = interpolateSingleFloats(from[1], to[1], numberOfValues);
-	std::vector<float> channel3 = interpolateSingleFloats(from[2], to[2], numberOfValues);
-	std::vector<glm::vec3> result;
-	for(size_t i=0; i<numberOfValues; i++) {
-		glm::vec3 value(channel1[i], channel2[i], channel3[i]);
-		result.push_back(value);
-	}
-	return result;
-}
-
-// WEEK 3
-
 // UTILS
 
 uint32_t colourToCode(Colour colour){
@@ -118,20 +93,24 @@ void CHECK(bool assertion, std::string failureMessage, size_t lineNumber) {
 
 
 float interpolatePointDepth(CanvasPoint from, CanvasPoint to, CanvasPoint pointOnLine) {
-	assert(from.depth > 0);
-	assert(to.depth > 0);
+	//assert(from.depth > 0);
+	//assert(to.depth > 0);
 
 	float depthDiff = to.depth - from.depth;
 	if (depthDiff == 0.0) {
+		assert(from.depth == to.depth);
 		return from.depth;
 	}
 	
 	float percentage = (pointOnLine.x - from.x) / (to.x - from.x);
 
-	CHECK(percentage >= 0, std::to_string(percentage), 131);
 	float interpolatedDepth = from.depth + (percentage * depthDiff);
 
-	assert(interpolatedDepth > 0);
+	if (interpolatedDepth < 0){
+		std::cout << interpolatedDepth << std::endl;
+	}
+
+	//assert(interpolatedDepth >= 0);
 
 	return interpolatedDepth;
 }
@@ -139,23 +118,6 @@ float interpolatePointDepth(CanvasPoint from, CanvasPoint to, CanvasPoint pointO
 // LINE DRAWING
 bool validCoord(int x, int y) {
 	return 0 <= x && x < WIDTH && 0 <= y && y < HEIGHT;
-}
-
-void drawLine(
-		DrawingWindow &window,
-		CanvasPoint from,
-		CanvasPoint to,
-		Colour colour
-	){
-	std::vector<CanvasPoint> points = getLinePoints(from, to);
-	for(size_t i = 0; i < points.size(); i++) {
-		int x = round(points[i].x);
-		int y = round(points[i].y);
-		
-		if (validCoord(x, y)){
-			window.setPixelColour(x, y, colourToCode(colour));
-		};
-	}
 }
 
 void drawLineWithDepth(
@@ -178,12 +140,6 @@ void drawLineWithDepth(
 			depthBuffer[xCoord][yCoord] = depth;
 		}
 	}
-}
-
-void drawStrokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour){
-	drawLine(window, triangle.vertices[0], triangle.vertices[1], colour);
-	drawLine(window, triangle.vertices[1], triangle.vertices[2], colour);
-	drawLine(window, triangle.vertices[2], triangle.vertices[0], colour);
 }
 
 // FILLED TRIANGLES
@@ -212,99 +168,6 @@ CanvasPoint getIntersectionPoint(std::array<CanvasPoint, 3UL> &verticies){
 	return CanvasPoint(x, verticies[1].y);
 }
 
-void drawTopTriangle(
-		DrawingWindow &window, 
-		CanvasPoint top, 
-		CanvasPoint bottomLeftPoint, 
-		CanvasPoint bottomRightPoint, 
-		Colour colour,
-		float depthBuffer[WIDTH][HEIGHT]
-	) {
-	assert(top.y <= bottomLeftPoint.y);
-	assert(top.y <= bottomRightPoint.y);
-	assert(bottomLeftPoint.x <= bottomRightPoint.x);
-
-	float verticalSteps = bottomLeftPoint.y - top.y;
-
-	float leftStepDelta = (bottomLeftPoint.x - top.x) / verticalSteps;
-	float rightStepDelta = (bottomRightPoint.x - top.x) / verticalSteps;
-
-	float currentLeftX = top.x;
-	float currentRightX = top.x;
-
-	for (float y = top.y; y <= bottomLeftPoint.y; y++) {
-		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
-		leftPoint.depth = interpolatePointDepth(top, bottomLeftPoint, leftPoint);
-		
-		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
-		rightPoint.depth = interpolatePointDepth(top, bottomRightPoint, rightPoint);
-
-		drawLineWithDepth(window, leftPoint, rightPoint, colour, depthBuffer);
-
-		currentLeftX += leftStepDelta;
-		currentRightX += rightStepDelta;
-	}
-}
-
-void drawBottomTriangle(
-		DrawingWindow &window, 
-		CanvasPoint bottom, 
-		CanvasPoint topLeftPoint, 
-		CanvasPoint topRightPoint,
-		Colour colour,
-		float depthBuffer[WIDTH][HEIGHT]	
-	) {
-
-	assert(topLeftPoint.y <= bottom.y);
-	assert(topRightPoint.y <= bottom.y);
-	assert(topLeftPoint.x <= topRightPoint.x);
-
-	float verticalSteps = bottom.y - topLeftPoint.y;
-
-	float leftStepDelta = (bottom.x - topLeftPoint.x) / verticalSteps;
-	float rightStepDelta = (bottom.x - topRightPoint.x) / verticalSteps;
-
-	float currentLeftX = topLeftPoint.x;
-	float currentRightX = topRightPoint.x;
-
-	for (float y = topLeftPoint.y; y <= bottom.y; y++) {
-		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
-		leftPoint.depth = interpolatePointDepth(topLeftPoint, bottom, leftPoint);
-
-		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
-		rightPoint.depth = interpolatePointDepth(topRightPoint, bottom, rightPoint);
-
-		drawLineWithDepth(window, leftPoint, rightPoint, colour, depthBuffer);
-
-		currentLeftX += leftStepDelta;
-		currentRightX += rightStepDelta;
-	}
-}
-
-void drawFilledTriangle(
-		DrawingWindow &window, 
-		CanvasTriangle triangle, 
-		Colour colour, 
-		float depthBuffer[WIDTH][HEIGHT]
-	){	
-	sortVerticies(triangle.vertices);
-
-	CanvasPoint top = triangle.vertices[0];
-	CanvasPoint middle = triangle.vertices[1];
-	CanvasPoint bottom = triangle.vertices[2];
-	
-	CanvasPoint intersectionPoint = getIntersectionPoint(triangle.vertices);
-	intersectionPoint.depth = interpolatePointDepth(top, bottom, intersectionPoint);
-
-	CanvasPoint leftPoint = middle;
-	CanvasPoint rightPoint = intersectionPoint;
-	if (rightPoint.x < leftPoint.x){
-		std::swap(leftPoint, rightPoint);	
-	}
-
-	drawTopTriangle(window, top, leftPoint, rightPoint, colour, depthBuffer);
-	drawBottomTriangle(window, bottom, leftPoint, rightPoint, colour, depthBuffer);
-}
 
 // TEXTURE FUNCTIONS
 uint32_t getTexturePixelColour(TextureMap textureMap, float x, float y){
@@ -332,7 +195,7 @@ void drawTextureLine(
 		DrawingWindow &window, 
 		CanvasPoint from, 
 		CanvasPoint to, 
-		TextureMap textureMap,
+		Material material,
 		float depthBuffer[WIDTH][HEIGHT]
 	){
 	std::vector<CanvasPoint> points = getLinePoints(from, to);
@@ -344,8 +207,14 @@ void drawTextureLine(
 		int xCoord = round(x);
 		int yCoord = round(y);
 
-		TexturePoint texturePoint = interpolateIntoTextureMap(from, to, points[i]);
-		uint32_t colourCode = getTexturePixelColour(textureMap, texturePoint.x, texturePoint.y);
+		uint32_t colourCode;
+		if (material.type == TEXTURE) {
+			TexturePoint texturePoint = interpolateIntoTextureMap(from, to, points[i]);
+			colourCode = getTexturePixelColour(material.textureMap, texturePoint.x, texturePoint.y);
+		}
+		else if (material.type == COLOUR) {
+			colourCode = colourToCode(material.colour);
+		}
 
 		if (depthBuffer[xCoord][yCoord] < depth && validCoord(xCoord, yCoord)){
 			window.setPixelColour(xCoord, yCoord, colourCode);
@@ -359,7 +228,7 @@ void drawTopTextureTriangle(
 		CanvasPoint top, 
 		CanvasPoint bottomLeftPoint, 
 		CanvasPoint bottomRightPoint,
-		TextureMap textureMap,
+		Material material,
 		float depthBuffer[WIDTH][HEIGHT]
 	){
 
@@ -378,14 +247,17 @@ void drawTopTextureTriangle(
 
 	for (float y = top.y; y <= bottomLeftPoint.y; y++) {
 		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
-		leftPoint.texturePoint = interpolateIntoTextureMap(top, bottomLeftPoint, leftPoint);
 		leftPoint.depth = interpolatePointDepth(top, bottomLeftPoint, leftPoint);
 
 		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
-		rightPoint.texturePoint = interpolateIntoTextureMap(top, bottomRightPoint, rightPoint);
 		rightPoint.depth = interpolatePointDepth(top, bottomRightPoint, rightPoint);
 
-		drawTextureLine(window, leftPoint, rightPoint, textureMap, depthBuffer);
+		if (material.type == TEXTURE){
+			leftPoint.texturePoint = interpolateIntoTextureMap(top, bottomLeftPoint, leftPoint);
+			rightPoint.texturePoint = interpolateIntoTextureMap(top, bottomRightPoint, rightPoint);
+		}
+
+		drawTextureLine(window, leftPoint, rightPoint, material, depthBuffer);
 
 		currentLeftX += leftStepDelta;
 		currentRightX += rightStepDelta;
@@ -397,7 +269,7 @@ void drawBottomTextureTriangle(
 		CanvasPoint bottom, 
 		CanvasPoint topLeftPoint, 
 		CanvasPoint topRightPoint,
-		TextureMap textureMap,
+		Material material,
 		float depthBuffer[WIDTH][HEIGHT]
 	){
 
@@ -416,14 +288,17 @@ void drawBottomTextureTriangle(
 
 	for (float y = topLeftPoint.y; y <= bottom.y; y++) {
 		CanvasPoint leftPoint = CanvasPoint(currentLeftX, y);
-		leftPoint.texturePoint = interpolateIntoTextureMap(topLeftPoint, bottom, leftPoint);
 		leftPoint.depth = interpolatePointDepth(topLeftPoint, bottom, leftPoint);
 
 		CanvasPoint rightPoint = CanvasPoint(currentRightX, y);
-		rightPoint.texturePoint = interpolateIntoTextureMap(topRightPoint, bottom, rightPoint);
 		rightPoint.depth = interpolatePointDepth(topRightPoint, bottom, rightPoint);
 
-		drawTextureLine(window, leftPoint, rightPoint, textureMap, depthBuffer);
+		if (material.type == TEXTURE) {
+			leftPoint.texturePoint = interpolateIntoTextureMap(topLeftPoint, bottom, leftPoint);
+			rightPoint.texturePoint = interpolateIntoTextureMap(topRightPoint, bottom, rightPoint);
+		}
+
+		drawTextureLine(window, leftPoint, rightPoint, material, depthBuffer);
 		currentLeftX += leftStepDelta;
 		currentRightX += rightStepDelta;
 	}
@@ -434,7 +309,7 @@ void drawBottomTextureTriangle(
 void drawTextureMapTriangle(
 		DrawingWindow &window, 
 		CanvasTriangle triangle, 
-		TextureMap textureMap,
+		Material material,
 		float depthBuffer[WIDTH][HEIGHT]
 	){
 
@@ -444,8 +319,11 @@ void drawTextureMapTriangle(
 	CanvasPoint bottom = triangle.vertices[2];
 
 	CanvasPoint intersectionPoint = getIntersectionPoint(triangle.vertices);
-	intersectionPoint.texturePoint = interpolateIntoTextureMap(top, bottom, intersectionPoint);
 	intersectionPoint.depth = interpolatePointDepth(top, bottom, intersectionPoint);
+
+	if (material.type == TEXTURE) {
+		intersectionPoint.texturePoint = interpolateIntoTextureMap(top, bottom, intersectionPoint);
+	}
 
 	CanvasPoint leftPoint = middle;
 	CanvasPoint rightPoint = intersectionPoint;
@@ -453,8 +331,8 @@ void drawTextureMapTriangle(
 		std::swap(leftPoint, rightPoint);
 	}
 
-	drawTopTextureTriangle(window, top, leftPoint, rightPoint, textureMap, depthBuffer);
-	drawBottomTextureTriangle(window, bottom, leftPoint, rightPoint, textureMap, depthBuffer);
+	drawTopTextureTriangle(window, top, leftPoint, rightPoint, material, depthBuffer);
+	drawBottomTextureTriangle(window, bottom, leftPoint, rightPoint, material, depthBuffer);
 }
 
 
@@ -517,17 +395,17 @@ int objIndexToVertexIndex(std::string objIndex) {
 std::vector<ModelTriangle> loadFromOBJ(
 		std::string filename,
 		std::map<std::string, Material> materialMap,
-		std::vector<MaterialType> &materialTypes
+		std::vector<Material> &materials
 	) {
 	std::vector<ModelTriangle> modelTriangles;
 	std::ifstream fileStream = std::ifstream(filename);
 	std::string line;
 	std::vector<glm::vec3> verticies;
 	std::vector<TexturePoint> texturePoints;
-	bool materialTypeSet;
+	bool materialSet;
 	Material material;
 	while(std::getline(fileStream, line)){
-		materialTypeSet = false;
+		materialSet = false;
 		std::vector<std::string> substrs = split(line, ' ');
 
 		if (substrs[0] == "usemtl") {
@@ -567,16 +445,16 @@ std::vector<ModelTriangle> loadFromOBJ(
 				// USING COLOUR
 				if (vertexIndexes[1] == ""){
 					triangle.colour = material.colour;
-					if (!materialTypeSet) materialTypes.push_back(COLOUR);
+					if (!materialSet) materials.push_back(material);
 				} 
 				
 				// USING TEXTURE MAP
 				else {
 					int texturePointIndex = objIndexToVertexIndex(vertexIndexes[1]);
 					triangle.texturePoints[index] = texturePoints[texturePointIndex];
-					if (!materialTypeSet) materialTypes.push_back(TEXTURE);
+					if (!materialSet) materials.push_back(material);
 				}
-				materialTypeSet = true;
+				materialSet = true;
 			} 
 			modelTriangles.push_back(triangle);
 		}
@@ -590,7 +468,8 @@ std::vector<ModelTriangle> loadFromOBJ(
 // Cornell box
 
 glm::vec2 vertexToImagePlane(glm::vec3 vertex, float focalLength, glm::vec3 camera) {
-	assert(focalLength < camera.z);
+	// doesn't work in 3d as is
+	//assert(focalLength < camera.z);
 
 	float planeScaling = 500;
 	glm::vec3 dist = vertex - camera;
@@ -607,7 +486,7 @@ glm::vec2 vertexToImagePlane(glm::vec3 vertex, float focalLength, glm::vec3 came
 void drawCornellBox(
 		DrawingWindow &window,
 		std::vector<ModelTriangle> triangles,
-		std::vector<MaterialType> materialTypes,
+		std::vector<Material> materials,
 		TextureMap textureMap,
 		float depthBuffer[WIDTH][HEIGHT],
 		glm::vec3 camera,
@@ -621,23 +500,14 @@ void drawCornellBox(
 			float depth = 1 / (focalLength - modelVertex.z);
 			CanvasPoint point = CanvasPoint(projectedVertex[0], projectedVertex[1], depth);
 
-			if (materialTypes[i] == TEXTURE){
+			if (materials[i].type == TEXTURE){
 				point.texturePoint = triangles[i].texturePoints[j];
 			}
 
 			verticies.push_back(point);
 		}
 		CanvasTriangle triangle = CanvasTriangle(verticies[0], verticies[1], verticies[2]);
-		if (materialTypes[i] == TEXTURE){
-
-			// TODO generate this from materials
-			// Load materials from name after?
-			drawTextureMapTriangle(window, triangle, textureMap, depthBuffer);
-		}
-
-		else {
-			drawFilledTriangle(window, triangle, triangles[i].colour, depthBuffer);
-		}
+		drawTextureMapTriangle(window, triangle, materials[i], depthBuffer);
 	}
 }
 
@@ -667,7 +537,7 @@ glm::vec3 rotateY(glm::vec3 camera, float theta){
 void draw(
 		DrawingWindow &window,
 		std::vector<ModelTriangle> triangles,
-		std::vector<MaterialType> materialTypes,
+		std::vector<Material> materials,
 		TextureMap textureMap,
 		float depthBuffer[WIDTH][HEIGHT],
 		glm::vec3 camera,
@@ -684,7 +554,7 @@ void draw(
 	drawCornellBox(
 		window,
 		triangles,
-		materialTypes,
+		materials,
 		textureMap,
 		depthBuffer,
 		camera,
@@ -705,7 +575,7 @@ void update(DrawingWindow &window) {
 
 void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec3 &camera) {
 	float TRANSLATION_STEP = 0.05;
-	float ROTATION_STEP = M_PI * 0.001;
+	float ROTATION_STEP = M_PI * 0.01;
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_LEFT) camera += glm::vec3(-TRANSLATION_STEP, 0.0, 0.0);
 		else if (event.key.keysym.sym == SDLK_RIGHT) camera += glm::vec3(TRANSLATION_STEP, 0.0, 0.0);
@@ -722,13 +592,13 @@ int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 	std::map<std::string, Material> materialMap = loadMaterialsFromMTL("textured-cornell-box.mtl");
-	std::vector<MaterialType> materialTypes;
-	std::vector<ModelTriangle> triangles = loadFromOBJ("textured-cornell-box.obj", materialMap, materialTypes);
+	std::vector<Material> materials;
+	std::vector<ModelTriangle> triangles = loadFromOBJ("textured-cornell-box.obj", materialMap, materials);
 	TextureMap textureMap = TextureMap("texture.ppm");
 
 	float depthBuffer[WIDTH][HEIGHT];
 
-	glm::vec3 camera = glm::vec3(0.0, 0.0, 6.0);
+	glm::vec3 camera = glm::vec3(0.0, 0.0, 8.0);
 	float focalLength = 2.0;
 	
 	while (true) {
@@ -740,7 +610,7 @@ int main(int argc, char *argv[]) {
 		draw(
 			window,
 			triangles,
-			materialTypes,
+			materials,
 			textureMap,
 			depthBuffer,
 			camera,
