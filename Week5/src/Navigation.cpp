@@ -93,21 +93,29 @@ void CHECK(bool assertion, std::string failureMessage, size_t lineNumber) {
 
 
 float interpolatePointDepth(CanvasPoint from, CanvasPoint to, CanvasPoint pointOnLine) {
-	//assert(from.depth > 0);
-	//assert(to.depth > 0);
+	assert(from.depth >= 0);
+	assert(to.depth >= 0);
 
 	float depthDiff = to.depth - from.depth;
-	if (depthDiff == 0.0) {
-		assert(from.depth == to.depth);
-		return from.depth;
-	}
 	
 	float percentage = (pointOnLine.x - from.x) / (to.x - from.x);
 
+	// Resolves issues where dividing by a number close to 0 make percentage NaN
+	if (!isnormal(percentage)) {
+		assert(isnormal(from.depth));
+		return from.depth;
+	}
+	
 	float interpolatedDepth = from.depth + (percentage * depthDiff);
 
 	if (interpolatedDepth < 0){
-		std::cout << interpolatedDepth << std::endl;
+		return from.depth;
+		std::cout << "TO.DEPTH " << to.depth << std::endl;
+		std::cout << "FROM.DEPTH " << from.depth << std::endl;
+		std::cout << "DEPTH DIFF " << depthDiff << std::endl;
+		std::cout << "PERCENTAGE " << percentage << std::endl;
+		std::cout << "DEPTH " << interpolatedDepth << std::endl;
+		std::cout << std::endl;
 	}
 
 	//assert(interpolatedDepth >= 0);
