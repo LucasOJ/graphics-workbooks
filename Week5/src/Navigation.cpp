@@ -66,9 +66,8 @@ class CameraEnvironment {
 
 		void lookAt(glm::vec3 point) {
 			glm::vec3 forward = glm::normalize(position - point);
-			std::cout << "FORWARD " << glm::to_string(forward) << std::endl;
 			glm::vec3 vertical = glm::vec3(0.0, 1.0, 0.0);
-			glm::vec3 right = glm::cross(vertical, forward);
+			glm::vec3 right = glm::normalize(glm::cross(vertical, forward));
 			glm::vec3 up = glm::cross(forward, right);
 
 			rotation = glm::mat3(
@@ -472,21 +471,28 @@ std::vector<ModelTriangle> loadFromOBJ(
 
 // Cornell box
 
-glm::vec2 vertexToImagePlane(glm::vec3 vertex, CameraEnvironment cameraEnv) {
+CanvasPoint vertexToImagePlane(glm::vec3 vertex, CameraEnvironment cameraEnv) {
 	// doesn't work in 3d as is
 	//assert(focalLength < camera.z);
 
 	float planeScaling = 500;
-	glm::vec3 absoluteDist = vertex - cameraEnv.position;
+	glm::vec3 absoluteDist = cameraEnv.position - vertex;
+	absoluteDist.z *= -1;
 	glm::vec3 orientedDist = cameraEnv.rotation * absoluteDist;
 
+	//std::cout << glm::to_string(absoluteDist) << std::endl;
+
 	// negative as zDist given by camera.z - vertex.x??
-	orientedDist.z *= -1;
+	//orientedDist.z = -orientedDist.z;
+	//orientedDist.y = -orientedDist.y;
+	//orientedDist.x = -orientedDist.x;
 
 	float u = (cameraEnv.focalLength / orientedDist.z) * orientedDist.x * planeScaling + WIDTH / 2;
 	// negative since y of zero at top of page
 	float v = -((cameraEnv.focalLength / orientedDist.z) * orientedDist.y * planeScaling) + HEIGHT / 2;
-	return glm::vec2(u, v);
+	float depth = 1 / (abs(orientedDist.z) - cameraEnv.focalLength);
+	assert(depth > 0);
+	return CanvasPoint(u, v, depth);
 }
 
 void drawCornellBox(
@@ -494,15 +500,14 @@ void drawCornellBox(
 		std::vector<ModelTriangle> triangles,
 		std::vector<Material> materials,
 		float depthBuffer[WIDTH][HEIGHT],
-		CameraEnvironment cameraEnv
+		CameraEnvironment &cameraEnv
 	) {
 	for (int i = 0; i < triangles.size(); i++){
 		std::vector<CanvasPoint> verticies;
 		for (int j = 0; j < 3; j++){
 			glm::vec3 modelVertex = triangles[i].vertices[j];
-			glm::vec2 projectedVertex = vertexToImagePlane(modelVertex, cameraEnv);
-			float depth = 1 / (cameraEnv.focalLength - modelVertex.z);
-			CanvasPoint point = CanvasPoint(projectedVertex[0], projectedVertex[1], depth);
+			CanvasPoint point = vertexToImagePlane(modelVertex, cameraEnv);
+			//float depth = 1 / (cameraEnv.focalLength - modelVertex.z);
 
 			if (materials[i].type == TEXTURE){
 				point.texturePoint = triangles[i].texturePoints[j];
@@ -543,7 +548,7 @@ void draw(
 		std::vector<ModelTriangle> triangles,
 		std::vector<Material> materials,
 		float depthBuffer[WIDTH][HEIGHT],
-		CameraEnvironment cameraEnv
+		CameraEnvironment &cameraEnv
 	) {
 	window.clearPixels();
 
@@ -563,10 +568,10 @@ void draw(
 }
 
 void update(DrawingWindow &window, CameraEnvironment &cameraEnv) {
-	//float ROTATION_STEP = M_PI * 0.001;
-	//cameraEnv.position = rotateY(cameraEnv.position, -ROTATION_STEP);
+	float ROTATION_STEP = M_PI * 0.001;
+	cameraEnv.position = rotateY(cameraEnv.position, -ROTATION_STEP);
 	//std::cout << "BEFORE " << glm::to_string(cameraEnv.rotation) << std::endl;
-	//cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
+	cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
 	//std::cout << "AFTER " << glm::to_string(cameraEnv.rotation) << std::endl;
 }
 
@@ -587,7 +592,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window, CameraEnvironment &came
 		else if (event.key.keysym.sym == SDLK_u) cameraEnv.rotateY(ROTATION_STEP);
 		else if (event.key.keysym.sym == SDLK_y) cameraEnv.rotateY(-ROTATION_STEP);
 		else if (event.key.keysym.sym == SDLK_l) cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
-		std::cout << glm::to_string(cameraEnv.position) << std::endl;
+
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) window.savePPM("output.ppm");
 }
 
