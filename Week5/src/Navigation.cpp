@@ -21,12 +21,6 @@
 #define WIDTH 320
 #define HEIGHT 320
 
-//class Environment {
-//	public:
-//		DrawingWindow window;
-//		float depthBuffer[WIDTH][HEIGHT] = {0.0};
-//};
-
 enum MaterialType { TEXTURE, COLOUR };
 
 class Material {
@@ -34,7 +28,6 @@ class Material {
 		MaterialType type;
 		Colour colour;
 		TextureMap textureMap;
-		std::string textureMapName;
 
 		void setColour(Colour newColour){
 			colour = newColour;
@@ -91,13 +84,11 @@ void CHECK(bool assertion, std::string failureMessage, size_t lineNumber) {
 	}
 }
 
-
 float interpolatePointDepth(CanvasPoint from, CanvasPoint to, CanvasPoint pointOnLine) {
 	assert(from.depth >= 0);
 	assert(to.depth >= 0);
 
 	float depthDiff = to.depth - from.depth;
-	
 	float percentage = (pointOnLine.x - from.x) / (to.x - from.x);
 
 	// Resolves issues where dividing by a number close to 0 make percentage NaN
@@ -107,51 +98,14 @@ float interpolatePointDepth(CanvasPoint from, CanvasPoint to, CanvasPoint pointO
 	}
 	
 	float interpolatedDepth = from.depth + (percentage * depthDiff);
-
-	if (interpolatedDepth < 0){
-		return from.depth;
-		std::cout << "TO.DEPTH " << to.depth << std::endl;
-		std::cout << "FROM.DEPTH " << from.depth << std::endl;
-		std::cout << "DEPTH DIFF " << depthDiff << std::endl;
-		std::cout << "PERCENTAGE " << percentage << std::endl;
-		std::cout << "DEPTH " << interpolatedDepth << std::endl;
-		std::cout << std::endl;
-	}
-
-	//assert(interpolatedDepth >= 0);
+	assert(interpolatedDepth >= 0);
 
 	return interpolatedDepth;
 }
 
-// LINE DRAWING
 bool validCoord(int x, int y) {
 	return 0 <= x && x < WIDTH && 0 <= y && y < HEIGHT;
 }
-
-void drawLineWithDepth(
-		DrawingWindow &window,
-		CanvasPoint from,
-		CanvasPoint to,
-		Colour colour,
-		float depthBuffer[WIDTH][HEIGHT]
-	){
-	std::vector<CanvasPoint> points = getLinePoints(from, to);
-	for(size_t i = 0; i < points.size(); i++) {
-		float x = points[i].x;
-		float y = points[i].y;
-		float depth = interpolatePointDepth(from, to, points[i]);
-		int xCoord = round(x);
-		int yCoord = round(y);
-
-		if (depthBuffer[xCoord][yCoord] < depth && validCoord(xCoord, yCoord)){
-			window.setPixelColour(xCoord, yCoord, colourToCode(colour));
-			depthBuffer[xCoord][yCoord] = depth;
-		}
-	}
-}
-
-// FILLED TRIANGLES
-// ADD ASSERTIONS
 
 void sortVerticies(std::array<CanvasPoint, 3UL> &verticies){
 	if (verticies[0].y > verticies[1].y){
@@ -199,6 +153,8 @@ TexturePoint interpolateIntoTextureMap(CanvasPoint from, CanvasPoint to, CanvasP
 	return TexturePoint(interpolatedPointX, interpolatedPointY);
 }
 
+// DRAWING FUNCTIONS
+
 void drawTextureLine(
 		DrawingWindow &window, 
 		CanvasPoint from, 
@@ -208,12 +164,10 @@ void drawTextureLine(
 	){
 	std::vector<CanvasPoint> points = getLinePoints(from, to);
 	for(size_t i = 0; i < points.size(); i++) {
-		float x = points[i].x;
-		float y = points[i].y;
+		int x = round(points[i].x);
+		int y = round(points[i].y);
 		
 		float depth = interpolatePointDepth(from, to, points[i]);
-		int xCoord = round(x);
-		int yCoord = round(y);
 
 		uint32_t colourCode;
 		if (material.type == TEXTURE) {
@@ -223,10 +177,11 @@ void drawTextureLine(
 		else if (material.type == COLOUR) {
 			colourCode = colourToCode(material.colour);
 		}
-		if (validCoord(xCoord, yCoord)) {
-			if (depthBuffer[xCoord][yCoord] < depth){
-				window.setPixelColour(xCoord, yCoord, colourCode);
-				depthBuffer[xCoord][yCoord] = depth;
+
+		if (validCoord(x, y)) {
+			if (depthBuffer[x][y] < depth){
+				window.setPixelColour(x, y, colourCode);
+				depthBuffer[x][y] = depth;
 			}
 		};
 	}
@@ -313,8 +268,6 @@ void drawBottomTextureTriangle(
 	}
 }
 
-// TODO: COMPRESS TO TAKE MATERIAL NOT COLOUR
-
 void drawTextureMapTriangle(
 		DrawingWindow &window, 
 		CanvasTriangle triangle, 
@@ -344,17 +297,16 @@ void drawTextureMapTriangle(
 	drawBottomTextureTriangle(window, bottom, leftPoint, rightPoint, material, depthBuffer);
 }
 
-
-// Week 4
-
 // MTL Parser
 
 std::map<std::string, Material> loadMaterialsFromMTL(std::string filename) {
 	std::ifstream fileStream = std::ifstream(filename);
+
 	std::map<std::string, Material> materialMap;
 	std::string line;
 	std::string name;
 	std::string textureMapFilename;
+
 	while(std::getline(fileStream, line)){
 		std::vector<std::string> substrs = split(line, ' ');
 		
@@ -368,26 +320,31 @@ std::map<std::string, Material> loadMaterialsFromMTL(std::string filename) {
 				int component = round(std::stof(substrs[i]) * 255);
 				colourComponents.push_back(component);
 			}
+
 			Colour colour = Colour(
 				name,
 				colourComponents[0], 
 				colourComponents[1], 
 				colourComponents[2]
 			);
+			
 			Material colourMaterial;
+			
 			colourMaterial.setColour(colour);
 			materialMap[name] = colourMaterial;
 		}
 
 		if (substrs[0] == "map_Kd"){
 			TextureMap textureMap = TextureMap(substrs[1]);
-			Material textureMaterial;
 			
+			Material textureMaterial;
 			textureMaterial.setTextureMap(textureMap);
-			textureMaterial.textureMapName = substrs[1];
+			
 			materialMap[name] = textureMaterial;
 		}
 	}
+
+	fileStream.close();
 	return materialMap;
 }
 
@@ -453,7 +410,6 @@ std::vector<ModelTriangle> loadFromOBJ(
 
 				// USING COLOUR
 				if (vertexIndexes[1] == ""){
-					triangle.colour = material.colour;
 					if (!materialSet) materials.push_back(material);
 				} 
 				
@@ -463,11 +419,11 @@ std::vector<ModelTriangle> loadFromOBJ(
 					triangle.texturePoints[index] = texturePoints[texturePointIndex];
 					if (!materialSet) materials.push_back(material);
 				}
+
 				materialSet = true;
 			} 
 			modelTriangles.push_back(triangle);
 		}
-
 	}
 
 	fileStream.close();
@@ -524,9 +480,9 @@ void drawCornellBox(
 
 glm::vec3 rotateX(glm::vec3 camera, float theta){
 	glm::mat3 rotation = glm::mat3(
-		1.0, 0.0, 0.0, // first column
-		0.0, cos(theta), sin(theta), // second column
-		0.0, -sin(theta), cos(theta) // third column
+		1.0, 0.0, 0.0, 					// first column
+		0.0, cos(theta), sin(theta), 	// second column
+		0.0, -sin(theta), cos(theta) 	// third column
 	);
 	return rotation * camera;
 }
@@ -534,9 +490,9 @@ glm::vec3 rotateX(glm::vec3 camera, float theta){
 
 glm::vec3 rotateY(glm::vec3 camera, float theta){
 	glm::mat3 rotation = glm::mat3(
-		cos(theta), 0.0, -sin(theta), // first column
-		0.0, 1.0, 0.0, // second column
-		sin(theta), 0.0, cos(theta) // third column
+		cos(theta), 0.0, -sin(theta), 	// first column
+		0.0, 1.0, 0.0, 					// second column
+		sin(theta), 0.0, cos(theta) 	// third column
 	);
 	return rotation * camera;
 }
@@ -569,13 +525,6 @@ void draw(
 		camera,
 		focalLength
 	);
-	//CanvasTriangle triag = CanvasTriangle(
-	//	CanvasPoint(0.0,0.0,0.1),
-	//	CanvasPoint(WIDTH - 1, 0.0, 0.1),
-	//	CanvasPoint(0.0, HEIGHT - 1, 0.1)
-	//);
-	//
-	//drawFilledTriangle(window, triag, Colour(255,0,0), depthBuffer);
 }
 
 void update(DrawingWindow &window) {
@@ -607,7 +556,7 @@ int main(int argc, char *argv[]) {
 
 	float depthBuffer[WIDTH][HEIGHT];
 
-	glm::vec3 camera = glm::vec3(0.0, 0.0, 8.0);
+	glm::vec3 camera = glm::vec3(0.0, 0.0, 4.0);
 	float focalLength = 2.0;
 	
 	while (true) {
@@ -629,8 +578,3 @@ int main(int argc, char *argv[]) {
 		window.renderFrame();
 	}
 }
-
-//for (int i = 0; i < verticies.size(); i++){
-//	std::cout << glm::to_string(verticies[i]) << std::endl;
-//}
-//std::cout << std::endl;
