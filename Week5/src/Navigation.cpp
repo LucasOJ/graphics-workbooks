@@ -40,6 +40,46 @@ class Material {
 		}
 };
 
+class CameraEnvironment {
+	public:
+		glm::vec3 position;
+		glm::mat3 rotation;
+		float focalLength;
+
+		void rotateX(float theta) {
+			glm::mat3 rotationX = glm::mat3(
+				1.0, 0.0, 0.0, 					// first column
+				0.0, cos(theta), sin(theta), 	// second column
+				0.0, -sin(theta), cos(theta) 	// third column
+			);
+			rotation = rotation * rotationX;
+		}
+
+		void rotateY(float theta) {
+			glm::mat3 rotationY = glm::mat3(
+				cos(theta), 0.0, -sin(theta), 	// first column
+				0.0, 1.0, 0.0, 					// second column
+				sin(theta), 0.0, cos(theta) 	// third column
+			);
+			rotation = rotation * rotationY;
+		}
+
+		void lookAt(glm::vec3 point) {
+			glm::vec3 forward = glm::normalize(position - point);
+			std::cout << "FORWARD " << glm::to_string(forward) << std::endl;
+			glm::vec3 vertical = glm::vec3(0.0, 1.0, 0.0);
+			glm::vec3 right = glm::cross(vertical, forward);
+			glm::vec3 up = glm::cross(forward, right);
+
+			rotation = glm::mat3(
+				right,
+				up,
+				forward
+			);
+			//std::cout << glm::to_string(rotation) << std::endl;
+		}
+};
+
 float SCALING_FACTOR = 0.17;
 
 // UTILS
@@ -432,19 +472,20 @@ std::vector<ModelTriangle> loadFromOBJ(
 
 // Cornell box
 
-glm::vec2 vertexToImagePlane(glm::vec3 vertex, float focalLength, glm::vec3 camera) {
+glm::vec2 vertexToImagePlane(glm::vec3 vertex, CameraEnvironment cameraEnv) {
 	// doesn't work in 3d as is
 	//assert(focalLength < camera.z);
 
 	float planeScaling = 500;
-	glm::vec3 dist = vertex - camera;
+	glm::vec3 absoluteDist = vertex - cameraEnv.position;
+	glm::vec3 orientedDist = cameraEnv.rotation * absoluteDist;
 
 	// negative as zDist given by camera.z - vertex.x??
-	dist.z *= -1;
+	orientedDist.z *= -1;
 
-	float u = (focalLength / dist.z) * dist.x * planeScaling + WIDTH / 2;
+	float u = (cameraEnv.focalLength / orientedDist.z) * orientedDist.x * planeScaling + WIDTH / 2;
 	// negative since y of zero at top of page
-	float v = -((focalLength / dist.z) * dist.y * planeScaling) + HEIGHT / 2;
+	float v = -((cameraEnv.focalLength / orientedDist.z) * orientedDist.y * planeScaling) + HEIGHT / 2;
 	return glm::vec2(u, v);
 }
 
@@ -452,17 +493,15 @@ void drawCornellBox(
 		DrawingWindow &window,
 		std::vector<ModelTriangle> triangles,
 		std::vector<Material> materials,
-		TextureMap textureMap,
 		float depthBuffer[WIDTH][HEIGHT],
-		glm::vec3 camera,
-		float focalLength
+		CameraEnvironment cameraEnv
 	) {
 	for (int i = 0; i < triangles.size(); i++){
 		std::vector<CanvasPoint> verticies;
 		for (int j = 0; j < 3; j++){
 			glm::vec3 modelVertex = triangles[i].vertices[j];
-			glm::vec2 projectedVertex = vertexToImagePlane(modelVertex, focalLength, camera);
-			float depth = 1 / (focalLength - modelVertex.z);
+			glm::vec2 projectedVertex = vertexToImagePlane(modelVertex, cameraEnv);
+			float depth = 1 / (cameraEnv.focalLength - modelVertex.z);
 			CanvasPoint point = CanvasPoint(projectedVertex[0], projectedVertex[1], depth);
 
 			if (materials[i].type == TEXTURE){
@@ -478,23 +517,23 @@ void drawCornellBox(
 
 // Transformation
 
-glm::vec3 rotateX(glm::vec3 camera, float theta){
+glm::vec3 rotateX(glm::vec3 vector, float theta){
 	glm::mat3 rotation = glm::mat3(
 		1.0, 0.0, 0.0, 					// first column
 		0.0, cos(theta), sin(theta), 	// second column
 		0.0, -sin(theta), cos(theta) 	// third column
 	);
-	return rotation * camera;
+	return rotation * vector;
 }
 
 
-glm::vec3 rotateY(glm::vec3 camera, float theta){
+glm::vec3 rotateY(glm::vec3 vector, float theta){
 	glm::mat3 rotation = glm::mat3(
 		cos(theta), 0.0, -sin(theta), 	// first column
 		0.0, 1.0, 0.0, 					// second column
 		sin(theta), 0.0, cos(theta) 	// third column
 	);
-	return rotation * camera;
+	return rotation * vector;
 }
 
 // EVENT LOOPS
@@ -503,10 +542,8 @@ void draw(
 		DrawingWindow &window,
 		std::vector<ModelTriangle> triangles,
 		std::vector<Material> materials,
-		TextureMap textureMap,
 		float depthBuffer[WIDTH][HEIGHT],
-		glm::vec3 camera,
-		float focalLength
+		CameraEnvironment cameraEnv
 	) {
 	window.clearPixels();
 
@@ -520,29 +557,37 @@ void draw(
 		window,
 		triangles,
 		materials,
-		textureMap,
 		depthBuffer,
-		camera,
-		focalLength
+		cameraEnv
 	);
 }
 
-void update(DrawingWindow &window) {
-	// Function for performing animation (shifting artifacts or moving the camera)
+void update(DrawingWindow &window, CameraEnvironment &cameraEnv) {
+	//float ROTATION_STEP = M_PI * 0.001;
+	//cameraEnv.position = rotateY(cameraEnv.position, -ROTATION_STEP);
+	//std::cout << "BEFORE " << glm::to_string(cameraEnv.rotation) << std::endl;
+	//cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
+	//std::cout << "AFTER " << glm::to_string(cameraEnv.rotation) << std::endl;
 }
 
-void handleEvent(SDL_Event event, DrawingWindow &window, glm::vec3 &camera) {
+void handleEvent(SDL_Event event, DrawingWindow &window, CameraEnvironment &cameraEnv) {
 	float TRANSLATION_STEP = 0.05;
 	float ROTATION_STEP = M_PI * 0.01;
 	if (event.type == SDL_KEYDOWN) {
-		if (event.key.keysym.sym == SDLK_LEFT) camera += glm::vec3(-TRANSLATION_STEP, 0.0, 0.0);
-		else if (event.key.keysym.sym == SDLK_RIGHT) camera += glm::vec3(TRANSLATION_STEP, 0.0, 0.0);
-		else if (event.key.keysym.sym == SDLK_UP) camera += glm::vec3(0.0, TRANSLATION_STEP, 0.0);
-		else if (event.key.keysym.sym == SDLK_DOWN) camera += glm::vec3(0.0, -TRANSLATION_STEP, 0.0);
-		else if (event.key.keysym.sym == SDLK_a) camera = rotateY(camera, -ROTATION_STEP);
-		else if (event.key.keysym.sym == SDLK_d) camera = rotateY(camera, ROTATION_STEP);
-		else if (event.key.keysym.sym == SDLK_w) camera = rotateX(camera, -ROTATION_STEP);
-		else if (event.key.keysym.sym == SDLK_s) camera = rotateX(camera, ROTATION_STEP);
+		if (event.key.keysym.sym == SDLK_LEFT) cameraEnv.position += glm::vec3(-TRANSLATION_STEP, 0.0, 0.0);
+		else if (event.key.keysym.sym == SDLK_RIGHT) cameraEnv.position += glm::vec3(TRANSLATION_STEP, 0.0, 0.0);
+		else if (event.key.keysym.sym == SDLK_UP) cameraEnv.position += glm::vec3(0.0, TRANSLATION_STEP, 0.0);
+		else if (event.key.keysym.sym == SDLK_DOWN) cameraEnv.position += glm::vec3(0.0, -TRANSLATION_STEP, 0.0);
+		else if (event.key.keysym.sym == SDLK_a) cameraEnv.position = rotateY(cameraEnv.position, -ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_d) cameraEnv.position = rotateY(cameraEnv.position, ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_w) cameraEnv.position = rotateX(cameraEnv.position, -ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_s) cameraEnv.position = rotateX(cameraEnv.position, ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_x) cameraEnv.rotateX(ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_c) cameraEnv.rotateX(-ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_u) cameraEnv.rotateY(ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_y) cameraEnv.rotateY(-ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_l) cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
+		std::cout << glm::to_string(cameraEnv.position) << std::endl;
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) window.savePPM("output.ppm");
 }
 
@@ -552,27 +597,30 @@ int main(int argc, char *argv[]) {
 	std::map<std::string, Material> materialMap = loadMaterialsFromMTL("textured-cornell-box.mtl");
 	std::vector<Material> materials;
 	std::vector<ModelTriangle> triangles = loadFromOBJ("textured-cornell-box.obj", materialMap, materials);
-	TextureMap textureMap = TextureMap("texture.ppm");
 
 	float depthBuffer[WIDTH][HEIGHT];
 
-	glm::vec3 camera = glm::vec3(0.0, 0.0, 4.0);
-	float focalLength = 2.0;
+	CameraEnvironment cameraEnv;
+	cameraEnv.position = glm::vec3(0.0, 0.0, 6.0);
+	cameraEnv.focalLength = 2;
+	cameraEnv.rotation = glm::mat3(
+		1.0, 0.0, 0.0,
+		0.0, 1.0, 0.0,
+		0.0, 0.0, 1.0
+	);
 	
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
-		if (window.pollForInputEvents(event)) handleEvent(event, window, camera);
+		if (window.pollForInputEvents(event)) handleEvent(event, window, cameraEnv);
 		
 
-	update(window);
+		update(window, cameraEnv);
 		draw(
 			window,
 			triangles,
 			materials,
-			textureMap,
 			depthBuffer,
-			camera,
-			focalLength
+			cameraEnv
 		);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
