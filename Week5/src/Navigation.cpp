@@ -223,11 +223,12 @@ void drawTextureLine(
 		else if (material.type == COLOUR) {
 			colourCode = colourToCode(material.colour);
 		}
-
-		if (depthBuffer[xCoord][yCoord] < depth && validCoord(xCoord, yCoord)){
-			window.setPixelColour(xCoord, yCoord, colourCode);
-			depthBuffer[xCoord][yCoord] = depth;
-		}
+		if (validCoord(xCoord, yCoord)) {
+			if (depthBuffer[xCoord][yCoord] < depth){
+				window.setPixelColour(xCoord, yCoord, colourCode);
+				depthBuffer[xCoord][yCoord] = depth;
+			}
+		};
 	}
 }
 
