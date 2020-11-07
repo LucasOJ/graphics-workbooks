@@ -53,6 +53,7 @@ class CameraEnvironment {
 				0.0, -sin(theta), cos(theta) 	// third column
 			);
 			rotation = rotation * rotationX;
+			std::cout << glm::to_string(rotation) << std::endl;
 		}
 
 		void rotateY(float theta) {
@@ -472,26 +473,21 @@ std::vector<ModelTriangle> loadFromOBJ(
 // Cornell box
 
 CanvasPoint vertexToImagePlane(glm::vec3 vertex, CameraEnvironment cameraEnv) {
-	// doesn't work in 3d as is
-	//assert(focalLength < camera.z);
-
 	float planeScaling = 500;
 	glm::vec3 absoluteDist = cameraEnv.position - vertex;
 	absoluteDist.z *= -1;
 	glm::vec3 orientedDist = cameraEnv.rotation * absoluteDist;
 
-	//std::cout << glm::to_string(absoluteDist) << std::endl;
-
-	// negative as zDist given by camera.z - vertex.x??
-	//orientedDist.z = -orientedDist.z;
-	//orientedDist.y = -orientedDist.y;
-	//orientedDist.x = -orientedDist.x;
+	// Checks that vertex in front of image plane
+	assert(abs(orientedDist.z) > cameraEnv.focalLength);
 
 	float u = (cameraEnv.focalLength / orientedDist.z) * orientedDist.x * planeScaling + WIDTH / 2;
+	
 	// negative since y of zero at top of page
 	float v = -((cameraEnv.focalLength / orientedDist.z) * orientedDist.y * planeScaling) + HEIGHT / 2;
-	float depth = 1 / (abs(orientedDist.z) - cameraEnv.focalLength);
-	assert(depth > 0);
+
+	float depth = 1 / (abs(orientedDist.z));
+	
 	return CanvasPoint(u, v, depth);
 }
 
@@ -507,7 +503,6 @@ void drawCornellBox(
 		for (int j = 0; j < 3; j++){
 			glm::vec3 modelVertex = triangles[i].vertices[j];
 			CanvasPoint point = vertexToImagePlane(modelVertex, cameraEnv);
-			//float depth = 1 / (cameraEnv.focalLength - modelVertex.z);
 
 			if (materials[i].type == TEXTURE){
 				point.texturePoint = triangles[i].texturePoints[j];
@@ -568,11 +563,9 @@ void draw(
 }
 
 void update(DrawingWindow &window, CameraEnvironment &cameraEnv) {
-	float ROTATION_STEP = M_PI * 0.001;
-	cameraEnv.position = rotateY(cameraEnv.position, -ROTATION_STEP);
-	//std::cout << "BEFORE " << glm::to_string(cameraEnv.rotation) << std::endl;
+	float ROTATION_STEP = M_PI * 0.01;
+	cameraEnv.position = rotateY(cameraEnv.position, ROTATION_STEP);
 	cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
-	//std::cout << "AFTER " << glm::to_string(cameraEnv.rotation) << std::endl;
 }
 
 void handleEvent(SDL_Event event, DrawingWindow &window, CameraEnvironment &cameraEnv) {
@@ -618,7 +611,6 @@ int main(int argc, char *argv[]) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window, cameraEnv);
 		
-
 		update(window, cameraEnv);
 		draw(
 			window,
