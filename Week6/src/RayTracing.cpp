@@ -203,6 +203,7 @@ std::vector<ModelTriangle> loadFromOBJ(
 
 				// USING COLOUR
 				if (vertexIndexes[1] == ""){
+					triangle.colour = material.colour;
 					if (!materialSet) materials.push_back(material);
 				} 
 				
@@ -626,7 +627,7 @@ Intersection getClosestIntersection(
 		};
 	}
 
-	if (triangles.empty()) {
+	if (intersections.empty()) {
 		intersection.type = NONE;
 	} else {
 		intersection.type = COLLISION;
@@ -638,6 +639,45 @@ Intersection getClosestIntersection(
 	}
 	return intersection;
 }
+
+void rayTraceCornellBox(
+		DrawingWindow &window,
+		std::vector<ModelTriangle> triangles,
+		std::vector<Material> materials,
+		CameraEnvironment &cameraEnv){
+	float RAY_SCALING = 0.003;
+	for (int x = 0; x < WIDTH; x++){
+		for (int y = 0; y < HEIGHT; y++){
+			//glm::vec3 imagePlanePoint = glm::vec3(i, j, )
+			float u = (float(x) - (WIDTH / 2)) * RAY_SCALING;
+			float v = -1 * (float(y) - (WIDTH / 2)) * RAY_SCALING;
+
+			//ADUST FOR ORIENTATION AND POSTION
+
+			glm::vec3 imagePlanePoint = glm::vec3(u, v, cameraEnv.focalLength);
+			glm::vec3 rayDirection = imagePlanePoint - cameraEnv.position;
+
+			Intersection intersection = getClosestIntersection(cameraEnv.position, rayDirection, triangles);
+			if (intersection.type == COLLISION){
+				Colour colour = intersection.intersection.intersectedTriangle.colour;
+				window.setPixelColour(x, y, colourToCode(colour));
+			}
+			
+		}
+	}
+};
+
+void rayTrace(
+		DrawingWindow &window,
+		std::vector<ModelTriangle> triangles,
+		std::vector<Material> materials,
+		CameraEnvironment &cameraEnv){
+
+	window.clearPixels();
+
+	rayTraceCornellBox(window, triangles, materials, cameraEnv);
+}
+
 
 // EVENT LOOPS
 
@@ -684,26 +724,20 @@ int main(int argc, char *argv[]) {
 		0.0, 0.0, 1.0
 	);
 
-	Intersection intersection = getClosestIntersection(
-		cameraEnv.position,
-		glm::vec3(0, 0, -1),
-		triangles
-	);
-
-	std::cout << intersection.intersection << std::endl;
+	rayTrace(window, triangles, materials, cameraEnv);
 	
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window, cameraEnv);
 		
 		update(window, cameraEnv);
-		rasterise(
-			window,
-			triangles,
-			materials,
-			depthBuffer,
-			cameraEnv
-		);
+		//rasterise(
+		//	window,
+		//	triangles,
+		//	materials,
+		//	depthBuffer,
+		//	cameraEnv
+		//);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
