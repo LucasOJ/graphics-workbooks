@@ -80,14 +80,6 @@ class CameraEnvironment {
 		}
 };
 
-enum IntersectionType { NONE, COLLISION };
-
-class Intersection {
-	public:
-		IntersectionType type;
-		RayTriangleIntersection intersection;
-};
-
 float SCALING_FACTOR = 0.17;
 
 // MTL Parser
@@ -575,19 +567,27 @@ bool isValidSolution(glm::vec3 solution) {
 	float u = solution.y;
 	float v = solution.z;
 
-	return (u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && (u + v) <= 1.0 && t >= 0.00001;
+	return (u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && (u + v) <= 1.0 && t >= 0;
 }
 
 bool intersectionComparator(RayTriangleIntersection a, RayTriangleIntersection b) {
 	return a.distanceFromCamera < b.distanceFromCamera;
 }
 
-Intersection getClosestIntersection(
+RayTriangleIntersection getClosestIntersection(std::vector<RayTriangleIntersection> intersections) {
+	assert(!intersections.empty());
+	return *std::min_element(
+		intersections.begin(),
+		intersections.end(),
+		intersectionComparator
+	);
+} 
+
+std::vector<RayTriangleIntersection> getIntersections(
 		glm::vec3 cameraPosition, 
 		glm::vec3 rayDirection, 
 		std::vector<ModelTriangle> triangles){
 	
-	Intersection intersection;
 	std::vector<RayTriangleIntersection> intersections;
 	glm::vec3 normalisedRayDirection = glm::normalize(rayDirection);
 
@@ -611,17 +611,7 @@ Intersection getClosestIntersection(
 		};
 	}
 
-	if (intersections.empty()) {
-		intersection.type = NONE;
-	} else {
-		intersection.type = COLLISION;
-		intersection.intersection = *std::min_element(
-			intersections.begin(),
-			intersections.end(),
-			intersectionComparator
-		);
-	}
-	return intersection;
+	return intersections;
 }
 
 void rayTraceCornellBox(
@@ -642,23 +632,33 @@ void rayTraceCornellBox(
 			glm::vec3 imagePlanePoint = glm::vec3(u, v, cameraEnv.focalLength);
 			glm::vec3 rayDirection = imagePlanePoint - cameraEnv.position;
 
-			Intersection intersection = getClosestIntersection(cameraEnv.position, rayDirection, triangles);
-			if (intersection.type == COLLISION){
-				glm::vec3 shadowDirection = light - intersection.intersection.intersectionPoint;
+			std::vector<RayTriangleIntersection> intersections = getIntersections(cameraEnv.position, rayDirection, triangles);
+			if (!intersections.empty()){
+				RayTriangleIntersection intersection = getClosestIntersection(intersections);
+				glm::vec3 shadowDirection = light - intersection.intersectionPoint;
 
-				Intersection shadow = getClosestIntersection(
-					intersection.intersection.intersectionPoint,
+				std::vector<RayTriangleIntersection> shadowIntersections = getIntersections(
+					intersection.intersectionPoint,
 					shadowDirection,
 					triangles
-				);
-				float distanceToLight = glm::length(shadowDirection);
+				); 
 				
-				Colour colour;
-				if (shadow.intersection.distanceFromCamera < distanceToLight && shadow.intersection.triangleIndex != intersection.intersection.triangleIndex) {
-					colour = Colour(0,0,0);
-				} else {
-					colour = intersection.intersection.intersectedTriangle.colour;
+				std::vector<RayTriangleIntersection> validShadowIntersections;
+				for (size_t i = 0; i < shadowIntersections.size(); i++) {
+					if (shadowIntersections[i].triangleIndex != intersection.triangleIndex) {
+						validShadowIntersections.push_back(shadowIntersections[i]);
+					}
 				}
+
+				Colour colour = intersection.intersectedTriangle.colour;
+				if (!validShadowIntersections.empty()) {
+					RayTriangleIntersection shadowIntersection = getClosestIntersection(validShadowIntersections);
+					float distanceToLight = glm::length(shadowDirection);
+					if (shadowIntersection.distanceFromCamera < distanceToLight) {
+						colour = Colour(0,0,0);
+					}
+				} 
+
 				window.setPixelColour(x, y, colourToCode(colour));
 			}
 			
@@ -674,7 +674,7 @@ void rayTrace(
 
 	window.clearPixels();
 
-	glm::vec3 light = glm::vec3(0.0, 0.35, 0.0);
+	glm::vec3 light = glm::vec3(0.0, 0.4, 0.0);
 
 	rayTraceCornellBox(window, triangles, materials, cameraEnv, light);
 }
