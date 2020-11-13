@@ -20,8 +20,8 @@
 
 #include <algorithm>
 
-#define WIDTH 320
-#define HEIGHT 320
+#define WIDTH 700
+#define HEIGHT 700
 
 enum MaterialType { TEXTURE, COLOUR };
 
@@ -84,7 +84,9 @@ enum RenderingMethod { RASTERISE, RAY_TRACE, WIREFRAME };
 
 float SCALING_FACTOR = 0.17;
 
-float PLANE_SCALING = 500.0;
+float PLANE_SCALING = 700.0;
+
+float SHADOW_FADE = 0.5;
 
 // MTL Parser
 
@@ -310,6 +312,7 @@ CanvasPoint getIntersectionPoint(std::array<CanvasPoint, 3UL> &verticies){
 
 
 // TEXTURE FUNCTIONS
+
 uint32_t getTexturePixelColour(TextureMap textureMap, float x, float y){
 	uint32_t index = round(y) * textureMap.width + round(x);
 	return textureMap.pixels[index];
@@ -493,7 +496,7 @@ CanvasPoint vertexToImagePlane(glm::vec3 vertex, CameraEnvironment cameraEnv) {
 	return CanvasPoint(u, v, depth);
 }
 
-void drawCornellBox(
+void drawRasterisedModel(
 		DrawingWindow &window,
 		std::vector<ModelTriangle> triangles,
 		std::vector<Material> materials,
@@ -553,7 +556,7 @@ void rasterise(
 		}
 	}
 
-	drawCornellBox(
+	drawRasterisedModel(
 		window,
 		triangles,
 		materials,
@@ -604,7 +607,6 @@ void drawWireframeModel(
 		drawStrokedTriangle(window, triangle, materials[i]);
 	}
 }
-
 
 // RAY TRACING
 
@@ -660,7 +662,7 @@ std::vector<RayTriangleIntersection> getIntersections(
 	return intersections;
 }
 
-void rayTraceCornellBox(
+void rayTraceModel(
 		DrawingWindow &window,
 		std::vector<ModelTriangle> triangles,
 		std::vector<Material> materials,
@@ -702,7 +704,7 @@ void rayTraceCornellBox(
 					RayTriangleIntersection shadowIntersection = getClosestIntersection(validShadowIntersections);
 					float distanceToLight = glm::length(shadowDirection);
 					if (shadowIntersection.distanceFromCamera < distanceToLight) {
-						colour = Colour(0,0,0);
+						colour = Colour(colour.red * SHADOW_FADE, colour.green * SHADOW_FADE, colour.blue * SHADOW_FADE);
 					}
 				} 
 
@@ -723,7 +725,7 @@ void rayTrace(
 
 	glm::vec3 light = glm::vec3(0.0, 0.4, 0.0);
 
-	rayTraceCornellBox(window, triangles, materials, cameraEnv, light);
+	rayTraceModel(window, triangles, materials, cameraEnv, light);
 }
 
 
@@ -755,8 +757,8 @@ void handleEvent(
 		else if (event.key.keysym.sym == SDLK_y) cameraEnv.rotateY(ROTATION_STEP);
 		else if (event.key.keysym.sym == SDLK_l) cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
 		else if (event.key.keysym.sym == SDLK_1) renderingMethod = RASTERISE;
-		else if (event.key.keysym.sym == SDLK_2) renderingMethod = RAY_TRACE;
-		else if (event.key.keysym.sym == SDLK_3) renderingMethod = WIREFRAME;
+		else if (event.key.keysym.sym == SDLK_2) renderingMethod = WIREFRAME;
+		else if (event.key.keysym.sym == SDLK_3) renderingMethod = RAY_TRACE;
 
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) window.savePPM("output.ppm");
 }
@@ -771,7 +773,7 @@ int main(int argc, char *argv[]) {
 	float depthBuffer[WIDTH][HEIGHT];
 
 	CameraEnvironment cameraEnv;
-	cameraEnv.position = glm::vec3(0.0, 0.0, 6.0);
+	cameraEnv.position = glm::vec3(0.0, 0.0, 4.0);
 	cameraEnv.focalLength = 2;
 	cameraEnv.rotation = glm::mat3(
 		1.0, 0.0, 0.0,
@@ -794,11 +796,11 @@ int main(int argc, char *argv[]) {
 				depthBuffer,
 				cameraEnv
 			);
-		} else if (renderingMethod == RAY_TRACE) {
-			rayTrace(window, triangles, materials, cameraEnv);
 		} else if (renderingMethod == WIREFRAME) {
 			drawWireframeModel(window, triangles, materials, cameraEnv);
-		}
+		} else if (renderingMethod == RAY_TRACE) {
+			rayTrace(window, triangles, materials, cameraEnv);
+		} 
 
 		window.renderFrame();
 	}
