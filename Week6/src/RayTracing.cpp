@@ -80,7 +80,7 @@ class CameraEnvironment {
 		}
 };
 
-enum RenderingMethod { RASTERISE, RAY_TRACE };
+enum RenderingMethod { RASTERISE, RAY_TRACE, WIREFRAME };
 
 float SCALING_FACTOR = 0.17;
 
@@ -562,6 +562,49 @@ void rasterise(
 	);
 }
 
+// WIRE-FRAMING
+
+void drawColourLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour) {
+	std::vector<CanvasPoint> points = getLinePoints(from, to);
+	int colourCode = colourToCode(colour);
+	for(size_t i = 0; i < points.size(); i++) {
+		int x = round(points[i].x);
+		int y = round(points[i].y);
+		
+		if (validCoord(x, y)) {
+			window.setPixelColour(x, y, colourCode);
+		};
+	}
+}
+
+void drawStrokedTriangle(DrawingWindow &window, CanvasTriangle triangle, Material material){
+	if (material.type == TEXTURE){
+		material.colour = Colour(255,255,255);
+	}
+	drawColourLine(window, triangle.vertices[0], triangle.vertices[1], material.colour);
+	drawColourLine(window, triangle.vertices[1], triangle.vertices[2], material.colour);
+	drawColourLine(window, triangle.vertices[2], triangle.vertices[0], material.colour);
+}
+
+void drawWireframeModel(
+		DrawingWindow &window,
+		std::vector<ModelTriangle> triangles,
+		std::vector<Material> materials,
+		CameraEnvironment &cameraEnv
+	) {
+	window.clearPixels();
+	for (int i = 0; i < triangles.size(); i++){
+		std::vector<CanvasPoint> verticies;
+		for (int j = 0; j < 3; j++){
+			glm::vec3 modelVertex = triangles[i].vertices[j];
+			CanvasPoint point = vertexToImagePlane(modelVertex, cameraEnv);
+			verticies.push_back(point);
+		}
+		CanvasTriangle triangle = CanvasTriangle(verticies[0], verticies[1], verticies[2]);
+		drawStrokedTriangle(window, triangle, materials[i]);
+	}
+}
+
 
 // RAY TRACING
 
@@ -713,6 +756,7 @@ void handleEvent(
 		else if (event.key.keysym.sym == SDLK_l) cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
 		else if (event.key.keysym.sym == SDLK_1) renderingMethod = RASTERISE;
 		else if (event.key.keysym.sym == SDLK_2) renderingMethod = RAY_TRACE;
+		else if (event.key.keysym.sym == SDLK_3) renderingMethod = WIREFRAME;
 
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) window.savePPM("output.ppm");
 }
@@ -752,6 +796,8 @@ int main(int argc, char *argv[]) {
 			);
 		} else if (renderingMethod == RAY_TRACE) {
 			rayTrace(window, triangles, materials, cameraEnv);
+		} else if (renderingMethod == WIREFRAME) {
+			drawWireframeModel(window, triangles, materials, cameraEnv);
 		}
 
 		window.renderFrame();
