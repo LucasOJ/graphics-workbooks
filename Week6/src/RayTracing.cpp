@@ -80,6 +80,8 @@ class CameraEnvironment {
 		}
 };
 
+enum RenderingMethod { RASTERISE, RAY_TRACE };
+
 float SCALING_FACTOR = 0.17;
 
 // MTL Parser
@@ -620,7 +622,7 @@ void rayTraceCornellBox(
 		std::vector<Material> materials,
 		CameraEnvironment &cameraEnv,
 		glm::vec3 light){
-	float RAY_SCALING = 0.003;
+	float RAY_SCALING = 1.0 / 500.0;
 	for (int x = 0; x < WIDTH; x++){
 		for (int y = 0; y < HEIGHT; y++){
 			//glm::vec3 imagePlanePoint = glm::vec3(i, j, )
@@ -629,7 +631,7 @@ void rayTraceCornellBox(
 
 			//ADUST FOR ORIENTATION AND POSTION
 
-			glm::vec3 imagePlanePoint = glm::vec3(u, v, cameraEnv.focalLength);
+			glm::vec3 imagePlanePoint = glm::vec3(u, v, -cameraEnv.focalLength) + cameraEnv.position;
 			glm::vec3 rayDirection = imagePlanePoint - cameraEnv.position;
 
 			std::vector<RayTriangleIntersection> intersections = getIntersections(cameraEnv.position, rayDirection, triangles);
@@ -686,7 +688,11 @@ void update(DrawingWindow &window, CameraEnvironment &cameraEnv) {
 
 }
 
-void handleEvent(SDL_Event event, DrawingWindow &window, CameraEnvironment &cameraEnv) {
+void handleEvent(
+		SDL_Event event,
+		DrawingWindow &window,
+		CameraEnvironment &cameraEnv,
+		RenderingMethod &renderingMethod) {
 	float TRANSLATION_STEP = 0.05;
 	float ROTATION_STEP = M_PI * 0.01;
 	if (event.type == SDL_KEYDOWN) {
@@ -703,6 +709,8 @@ void handleEvent(SDL_Event event, DrawingWindow &window, CameraEnvironment &came
 		else if (event.key.keysym.sym == SDLK_u) cameraEnv.rotateY(ROTATION_STEP);
 		else if (event.key.keysym.sym == SDLK_y) cameraEnv.rotateY(-ROTATION_STEP);
 		else if (event.key.keysym.sym == SDLK_l) cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
+		else if (event.key.keysym.sym == SDLK_1) renderingMethod = RASTERISE;
+		else if (event.key.keysym.sym == SDLK_2) renderingMethod = RAY_TRACE;
 
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) window.savePPM("output.ppm");
 }
@@ -725,21 +733,25 @@ int main(int argc, char *argv[]) {
 		0.0, 0.0, 1.0
 	);
 
-	rayTrace(window, triangles, materials, cameraEnv);
+	RenderingMethod renderingMethod = RASTERISE;
 	
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
-		if (window.pollForInputEvents(event)) handleEvent(event, window, cameraEnv);
+		if (window.pollForInputEvents(event)) handleEvent(event, window, cameraEnv, renderingMethod);
 		
 		update(window, cameraEnv);
-		//rasterise(
-		//	window,
-		//	triangles,
-		//	materials,
-		//	depthBuffer,
-		//	cameraEnv
-		//);
-		// Need to render the frame at the end, or nothing actually gets shown on the screen !
+		if (renderingMethod == RASTERISE) {
+			rasterise(
+				window,
+				triangles,
+				materials,
+				depthBuffer,
+				cameraEnv
+			);
+		} else if (renderingMethod == RAY_TRACE) {
+			rayTrace(window, triangles, materials, cameraEnv);
+		}
+
 		window.renderFrame();
 	}
 }
