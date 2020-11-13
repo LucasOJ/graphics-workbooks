@@ -84,6 +84,8 @@ enum RenderingMethod { RASTERISE, RAY_TRACE };
 
 float SCALING_FACTOR = 0.17;
 
+float PLANE_SCALING = 500.0;
+
 // MTL Parser
 
 std::map<std::string, Material> loadMaterialsFromMTL(std::string filename) {
@@ -474,7 +476,6 @@ void drawTextureMapTriangle(
 }
 
 CanvasPoint vertexToImagePlane(glm::vec3 vertex, CameraEnvironment cameraEnv) {
-	float planeScaling = 500;
 	glm::vec3 absoluteDist = cameraEnv.position - vertex;
 	absoluteDist.z *= -1;
 	glm::vec3 orientedDist = cameraEnv.rotation * absoluteDist;
@@ -482,10 +483,10 @@ CanvasPoint vertexToImagePlane(glm::vec3 vertex, CameraEnvironment cameraEnv) {
 	// Checks that vertex in front of image plane
 	assert(abs(orientedDist.z) > cameraEnv.focalLength);
 
-	float u = (cameraEnv.focalLength / orientedDist.z) * orientedDist.x * planeScaling + WIDTH / 2;
+	float u = (cameraEnv.focalLength / orientedDist.z) * orientedDist.x * PLANE_SCALING + WIDTH / 2;
 	
 	// negative since y of zero at top of page
-	float v = -((cameraEnv.focalLength / orientedDist.z) * orientedDist.y * planeScaling) + HEIGHT / 2;
+	float v = -((cameraEnv.focalLength / orientedDist.z) * orientedDist.y * PLANE_SCALING) + HEIGHT / 2;
 
 	float depth = 1 / (abs(orientedDist.z));
 	
@@ -622,7 +623,7 @@ void rayTraceCornellBox(
 		std::vector<Material> materials,
 		CameraEnvironment &cameraEnv,
 		glm::vec3 light){
-	float RAY_SCALING = 1.0 / 500.0;
+	float RAY_SCALING = 1.0 / PLANE_SCALING;
 	for (int x = 0; x < WIDTH; x++){
 		for (int y = 0; y < HEIGHT; y++){
 			//glm::vec3 imagePlanePoint = glm::vec3(i, j, )
@@ -633,8 +634,9 @@ void rayTraceCornellBox(
 
 			glm::vec3 imagePlanePoint = glm::vec3(u, v, -cameraEnv.focalLength) + cameraEnv.position;
 			glm::vec3 rayDirection = imagePlanePoint - cameraEnv.position;
+			glm::vec3 rotatedRayDirection = cameraEnv.rotation * rayDirection;
 
-			std::vector<RayTriangleIntersection> intersections = getIntersections(cameraEnv.position, rayDirection, triangles);
+			std::vector<RayTriangleIntersection> intersections = getIntersections(cameraEnv.position, rotatedRayDirection, triangles);
 			if (!intersections.empty()){
 				RayTriangleIntersection intersection = getClosestIntersection(intersections);
 				glm::vec3 shadowDirection = light - intersection.intersectionPoint;
@@ -704,10 +706,10 @@ void handleEvent(
 		else if (event.key.keysym.sym == SDLK_d) cameraEnv.position = rotateY(cameraEnv.position, ROTATION_STEP);
 		else if (event.key.keysym.sym == SDLK_w) cameraEnv.position = rotateX(cameraEnv.position, -ROTATION_STEP);
 		else if (event.key.keysym.sym == SDLK_s) cameraEnv.position = rotateX(cameraEnv.position, ROTATION_STEP);
-		else if (event.key.keysym.sym == SDLK_x) cameraEnv.rotateX(ROTATION_STEP);
-		else if (event.key.keysym.sym == SDLK_c) cameraEnv.rotateX(-ROTATION_STEP);
-		else if (event.key.keysym.sym == SDLK_u) cameraEnv.rotateY(ROTATION_STEP);
-		else if (event.key.keysym.sym == SDLK_y) cameraEnv.rotateY(-ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_x) cameraEnv.rotateX(-ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_c) cameraEnv.rotateX(ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_u) cameraEnv.rotateY(-ROTATION_STEP);
+		else if (event.key.keysym.sym == SDLK_y) cameraEnv.rotateY(ROTATION_STEP);
 		else if (event.key.keysym.sym == SDLK_l) cameraEnv.lookAt(glm::vec3(0.0, 0.0, 0.0));
 		else if (event.key.keysym.sym == SDLK_1) renderingMethod = RASTERISE;
 		else if (event.key.keysym.sym == SDLK_2) renderingMethod = RAY_TRACE;
