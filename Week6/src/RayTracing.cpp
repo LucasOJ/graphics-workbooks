@@ -571,27 +571,11 @@ void rasterise(
 // RAY TRACING
 
 bool isValidSolution(glm::vec3 solution) {
+	float t = solution.x;
 	float u = solution.y;
 	float v = solution.z;
-	return (u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && (u + v) <= 1.0;
-}
 
-RayTriangleIntersection buildRayTriangleIntersection(
-		glm::vec3 ray,
-		glm::vec3 cameraPosition,
-		glm::vec3 rayDirection,
-		ModelTriangle triangle,
-		size_t triangleIndex) {
-	
-	glm::vec3 normalisedRayDirection = glm::normalize(rayDirection);
-	glm::vec3 intersectionPoint = cameraPosition + ray[0] * normalisedRayDirection;
-
-	return RayTriangleIntersection(
-		intersectionPoint,
-		ray[0],
-		triangle,
-		triangleIndex
-	);
+	return (u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && (u + v) <= 1.0 && t >= 0.00001;
 }
 
 bool intersectionComparator(RayTriangleIntersection a, RayTriangleIntersection b) {
@@ -605,21 +589,21 @@ Intersection getClosestIntersection(
 	
 	Intersection intersection;
 	std::vector<RayTriangleIntersection> intersections;
-
+	glm::vec3 normalisedRayDirection = glm::normalize(rayDirection);
 
 	for (size_t i = 0; i < triangles.size(); i++){
 		ModelTriangle triangle = triangles[i];
 		glm::vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
 		glm::vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
 		glm::vec3 SPVector = cameraPosition - triangle.vertices[0];
-		glm::mat3 DEMatrix(-rayDirection, e0, e1);
+		glm::mat3 DEMatrix(-normalisedRayDirection, e0, e1);
 		glm::vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
 		if (isValidSolution(possibleSolution)) {
-			RayTriangleIntersection rayTriangleIntersection = buildRayTriangleIntersection(
-				possibleSolution,
-				cameraPosition,
-				rayDirection,
+			glm::vec3 intersectionPoint = cameraPosition + possibleSolution[0] * normalisedRayDirection;
+			RayTriangleIntersection rayTriangleIntersection = RayTriangleIntersection(
+				intersectionPoint,
+				possibleSolution[0],
 				triangle,
 				i
 			);
@@ -644,7 +628,8 @@ void rayTraceCornellBox(
 		DrawingWindow &window,
 		std::vector<ModelTriangle> triangles,
 		std::vector<Material> materials,
-		CameraEnvironment &cameraEnv){
+		CameraEnvironment &cameraEnv,
+		glm::vec3 light){
 	float RAY_SCALING = 0.003;
 	for (int x = 0; x < WIDTH; x++){
 		for (int y = 0; y < HEIGHT; y++){
@@ -659,7 +644,21 @@ void rayTraceCornellBox(
 
 			Intersection intersection = getClosestIntersection(cameraEnv.position, rayDirection, triangles);
 			if (intersection.type == COLLISION){
-				Colour colour = intersection.intersection.intersectedTriangle.colour;
+				glm::vec3 shadowDirection = light - intersection.intersection.intersectionPoint;
+
+				Intersection shadow = getClosestIntersection(
+					intersection.intersection.intersectionPoint,
+					shadowDirection,
+					triangles
+				);
+				float distanceToLight = glm::length(shadowDirection);
+				
+				Colour colour;
+				if (shadow.intersection.distanceFromCamera < distanceToLight && shadow.intersection.triangleIndex != intersection.intersection.triangleIndex) {
+					colour = Colour(0,0,0);
+				} else {
+					colour = intersection.intersection.intersectedTriangle.colour;
+				}
 				window.setPixelColour(x, y, colourToCode(colour));
 			}
 			
@@ -675,7 +674,9 @@ void rayTrace(
 
 	window.clearPixels();
 
-	rayTraceCornellBox(window, triangles, materials, cameraEnv);
+	glm::vec3 light = glm::vec3(0.0, 0.35, 0.0);
+
+	rayTraceCornellBox(window, triangles, materials, cameraEnv, light);
 }
 
 
