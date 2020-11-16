@@ -720,7 +720,11 @@ void rayTraceModel(
 				
 				float brightness = BRIGHTNESS_SCALING / (distanceToLight * distanceToLight);
 				
-				brightness = std::min(brightness, float(1.0));
+				glm::vec3 normalisedLightRay = glm::normalize(lightRay);
+				float angleOfIncidence = glm::dot(normalisedLightRay, intersection.intersectedTriangle.normal);
+				angleOfIncidence = std::max(angleOfIncidence, float(0.0));
+				
+				brightness = std::min(brightness * angleOfIncidence, float(1.0));
 
 				Colour adjustedColour = adjustBrightness(colour, brightness);
 
