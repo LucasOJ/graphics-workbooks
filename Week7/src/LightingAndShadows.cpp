@@ -86,8 +86,8 @@ float SCALING_FACTOR = 0.17;
 
 float PLANE_SCALING = 700.0;
 
-float SHADOW_FADE = 0.5;
-float BRIGHTNESS_SCALING = 0.3 / (M_PI);
+float SHADOW_FADE = 0.8;
+float BRIGHTNESS_SCALING = 1.0 / (M_PI);
 
 // MTL Parser
 
@@ -678,7 +678,7 @@ Colour adjustBrightness(Colour colour, float brightness) {
 float getSpecularCoefficient(glm::vec3 normal, glm::vec3 incidenceDirection, glm::vec3 viewDirection){
 	glm::vec3 reflectionDirection = incidenceDirection - 2.0f * normal * glm::dot(normal, incidenceDirection);
 	float specularCoefficent = glm::dot(reflectionDirection, normal);
-	return pow(specularCoefficent, 128);
+	return pow(specularCoefficent, 256);
 }
 
 void rayTraceModel(
@@ -732,16 +732,23 @@ void rayTraceModel(
 				float angleOfIncidence = glm::dot(normalisedLightRay, intersection.intersectedTriangle.normal);
 				angleOfIncidence = std::max(angleOfIncidence, float(0.0));
 				
-				brightness = std::min(brightness * angleOfIncidence + 0.25f * specularCoeffcient, float(1.0));
+				brightness = brightness * angleOfIncidence;
+
+
+				if (!validShadowIntersections.empty()) {
+					RayTriangleIntersection shadowIntersection = getClosestIntersection(validShadowIntersections);
+					if (shadowIntersection.distanceFromCamera < distanceToLight) {
+						brightness *= SHADOW_FADE;
+					}
+				} else {
+					brightness += 0.1f * specularCoeffcient;
+				}
+
+
+				brightness = std::max(brightness, 0.2f);
+				brightness = std::min(brightness, 1.0f);
 
 				Colour adjustedColour = adjustBrightness(colour, brightness);
-
-				//if (!validShadowIntersections.empty()) {
-				//	RayTriangleIntersection shadowIntersection = getClosestIntersection(validShadowIntersections);
-				//	if (shadowIntersection.distanceFromCamera < distanceToLight) {
-				//		colour = Colour(colour.red * SHADOW_FADE, colour.green * SHADOW_FADE, colour.blue * SHADOW_FADE);
-				//	}
-				//} 
 
 				window.setPixelColour(x, y, colourToCode(adjustedColour));
 			}
