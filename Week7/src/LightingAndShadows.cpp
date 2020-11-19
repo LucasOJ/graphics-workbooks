@@ -675,6 +675,12 @@ Colour adjustBrightness(Colour colour, float brightness) {
 	);
 }
 
+float getSpecularCoefficient(glm::vec3 normal, glm::vec3 incidenceDirection, glm::vec3 viewDirection){
+	glm::vec3 reflectionDirection = incidenceDirection - 2.0f * normal * glm::dot(normal, incidenceDirection);
+	float specularCoefficent = glm::dot(reflectionDirection, normal);
+	return pow(specularCoefficent, 128);
+}
+
 void rayTraceModel(
 		DrawingWindow &window,
 		std::vector<ModelTriangle> triangles,
@@ -711,22 +717,31 @@ void rayTraceModel(
 				}
 
 				Colour colour = intersection.intersectedTriangle.colour;
+
+				
+				float brightness = BRIGHTNESS_SCALING / (distanceToLight * distanceToLight);
+				
+				glm::vec3 normalisedLightRay = glm::normalize(lightRay);
+
+				float specularCoeffcient = getSpecularCoefficient(
+					intersection.intersectedTriangle.normal, 
+					-normalisedLightRay, 
+					-rotatedRayDirection
+				);
+
+				float angleOfIncidence = glm::dot(normalisedLightRay, intersection.intersectedTriangle.normal);
+				angleOfIncidence = std::max(angleOfIncidence, float(0.0));
+				
+				brightness = std::min(brightness * angleOfIncidence + 0.25f * specularCoeffcient, float(1.0));
+
+				Colour adjustedColour = adjustBrightness(colour, brightness);
+
 				//if (!validShadowIntersections.empty()) {
 				//	RayTriangleIntersection shadowIntersection = getClosestIntersection(validShadowIntersections);
 				//	if (shadowIntersection.distanceFromCamera < distanceToLight) {
 				//		colour = Colour(colour.red * SHADOW_FADE, colour.green * SHADOW_FADE, colour.blue * SHADOW_FADE);
 				//	}
 				//} 
-				
-				float brightness = BRIGHTNESS_SCALING / (distanceToLight * distanceToLight);
-				
-				glm::vec3 normalisedLightRay = glm::normalize(lightRay);
-				float angleOfIncidence = glm::dot(normalisedLightRay, intersection.intersectedTriangle.normal);
-				angleOfIncidence = std::max(angleOfIncidence, float(0.0));
-				
-				brightness = std::min(brightness * angleOfIncidence, float(1.0));
-
-				Colour adjustedColour = adjustBrightness(colour, brightness);
 
 				window.setPixelColour(x, y, colourToCode(adjustedColour));
 			}
