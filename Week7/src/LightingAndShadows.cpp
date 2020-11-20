@@ -86,7 +86,7 @@ float SCALING_FACTOR = 0.17;
 
 float PLANE_SCALING = 700.0;
 
-float SHADOW_FADE = 0.8;
+float SHADOW_FADE = 0.5;
 float BRIGHTNESS_SCALING = 1.0 / (M_PI);
 
 // MTL Parser
@@ -488,7 +488,7 @@ CanvasPoint vertexToImagePlane(glm::vec3 vertex, CameraEnvironment cameraEnv) {
 	glm::vec3 orientedDist = cameraEnv.rotation * absoluteDist;
 
 	// Checks that vertex in front of image plane
-	assert(abs(orientedDist.z) > cameraEnv.focalLength);
+	// assert(abs(orientedDist.z) > cameraEnv.focalLength);
 
 	float u = (cameraEnv.focalLength / orientedDist.z) * orientedDist.x * PLANE_SCALING + WIDTH / 2;
 	
@@ -744,9 +744,9 @@ void rayTraceModel(
 					brightness += 0.1f * specularCoeffcient;
 				}
 
+				float minBrightness = 0.2;
 
-				brightness = std::max(brightness, 0.2f);
-				brightness = std::min(brightness, 1.0f);
+				brightness = std::min(brightness + minBrightness, 1.0f);
 
 				Colour adjustedColour = adjustBrightness(colour, brightness);
 
@@ -820,11 +820,20 @@ int main(int argc, char *argv[]) {
 	SDL_Event event;
 	std::map<std::string, Material> materialMap = loadMaterialsFromMTL("cornell-box.mtl");
 	std::vector<Material> materials;
-	std::vector<ModelTriangle> triangles = loadFromOBJ("cornell-box.obj", materialMap, materials);
+	std::vector<ModelTriangle> triangles = loadFromOBJ("sphere.obj", materialMap, materials);
+	Material red;
+	red.colour = Colour(255,0,0);
+	red.type = TEXTURE;
+	for (int i = 0; i < triangles.size(); i++){
+		materials.push_back(red);
+		triangles[i].colour = Colour(255,0,0);
+		std::cout << triangles[i] << std::endl;
+	}
+
 
 	CameraEnvironment cameraEnv;
-	cameraEnv.position = glm::vec3(0.0, 0.0, 4.0);
-	cameraEnv.focalLength = 2;
+	cameraEnv.position = glm::vec3(0.0, 0.25, 1.0);
+	cameraEnv.focalLength = 1.2;
 	cameraEnv.rotation = glm::mat3(
 		1.0, 0.0, 0.0,
 		0.0, 1.0, 0.0,
@@ -837,7 +846,7 @@ int main(int argc, char *argv[]) {
 	float depthBuffer[WIDTH][HEIGHT];
 
 	// FOR RAY TRACING
-	glm::vec3 lightPosition = glm::vec3(0.0, 0.0, 0.4);
+	glm::vec3 lightPosition = glm::vec3(0.5, 0.5, 0.5);
 
 	
 	while (true) {
