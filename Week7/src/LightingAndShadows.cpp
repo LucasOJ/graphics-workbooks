@@ -709,12 +709,6 @@ void rayTraceModel(
 					triangles
 				); 
 				
-				std::vector<RayTriangleIntersection> validShadowIntersections;
-				for (size_t i = 0; i < shadowIntersections.size(); i++) {
-					if (shadowIntersections[i].triangleIndex != intersection.triangleIndex) {
-						validShadowIntersections.push_back(shadowIntersections[i]);
-					}
-				}
 
 				Colour colour = intersection.intersectedTriangle.colour;
 
@@ -723,26 +717,34 @@ void rayTraceModel(
 				
 				glm::vec3 normalisedLightRay = glm::normalize(lightRay);
 
-				float specularCoeffcient = getSpecularCoefficient(
-					intersection.intersectedTriangle.normal, 
-					-normalisedLightRay, 
-					-rotatedRayDirection
-				);
 
 				float angleOfIncidence = glm::dot(normalisedLightRay, intersection.intersectedTriangle.normal);
 				angleOfIncidence = std::max(angleOfIncidence, float(0.0));
 				
 				brightness = brightness * angleOfIncidence;
 
+				//std::vector<RayTriangleIntersection> validShadowIntersections;
+				//for (size_t i = 0; i < shadowIntersections.size(); i++) {
+				//	if (shadowIntersections[i].triangleIndex != intersection.triangleIndex) {
+				//		validShadowIntersections.push_back(shadowIntersections[i]);
+				//	}
+				//}
+				//if (!validShadowIntersections.empty()) {
+				//	RayTriangleIntersection shadowIntersection = getClosestIntersection(validShadowIntersections);
+				//	if (shadowIntersection.distanceFromCamera < distanceToLight) {
+				//		brightness *= SHADOW_FADE;
+				//	}
+				//} else {
+				//	brightness += 0.1f * specularCoeffcient;
+				//}
 
-				if (!validShadowIntersections.empty()) {
-					RayTriangleIntersection shadowIntersection = getClosestIntersection(validShadowIntersections);
-					if (shadowIntersection.distanceFromCamera < distanceToLight) {
-						brightness *= SHADOW_FADE;
-					}
-				} else {
-					brightness += 0.1f * specularCoeffcient;
-				}
+				float specularCoeffcient = getSpecularCoefficient(
+					intersection.intersectedTriangle.normal, 
+					-normalisedLightRay, 
+					-rotatedRayDirection
+				);
+
+				brightness += 0.3f * specularCoeffcient;
 
 				float minBrightness = 0.2;
 
@@ -769,6 +771,7 @@ void rayTrace(
 	rayTraceModel(window, triangles, materials, cameraEnv, lightPosition);
 }
 
+// SHADING
 
 // EVENT LOOPS
 
@@ -824,6 +827,7 @@ int main(int argc, char *argv[]) {
 	Material red;
 	red.colour = Colour(255,0,0);
 	red.type = TEXTURE;
+
 	for (int i = 0; i < triangles.size(); i++){
 		materials.push_back(red);
 		triangles[i].colour = Colour(255,0,0);
